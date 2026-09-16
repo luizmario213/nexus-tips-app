@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { BancaMovimento, BancaMovimentoTipo, Operation, Signal } from "@/lib/types";
 
@@ -26,41 +26,219 @@ function formatData(iso: string) {
   });
 }
 
+function formatDataCurta(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+// Formatação monetária pt-BR "de verdade" (R$ 1.234,56) em vez de toFixed(2) cru —
+// mais consistente com o resto do produto sendo um software "profissional".
+function fmtMoney(v: number) {
+  return v.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function fmtPct(v: number) {
+  return `${v >= 0 ? "+" : ""}${v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
 const MOVIMENTO_LABEL: Record<BancaMovimentoTipo, string> = {
   aporte: "Aporte",
   saque: "Saque",
   ajuste: "Ajuste",
 };
 
-function ProfitChart({ series }: { series: number[] }) {
-  if (series.length < 2) {
+const MOVIMENTO_ICON: Record<BancaMovimentoTipo, JSX.Element> = {
+  aporte: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 4v13M6 12l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  saque: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 20V7M6 12l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  ajuste: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h13M21 18h-1" strokeLinecap="round" />
+      <circle cx="14.5" cy="6" r="2" />
+      <circle cx="8.5" cy="12" r="2" />
+      <circle cx="18.5" cy="18" r="2" />
+    </svg>
+  ),
+};
+
+function ArrowConnector({ highlight = false }: { highlight?: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={`flex-none rotate-90 sm:rotate-0 ${highlight ? "text-primary" : "text-muted"}`}
+    >
+      <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Chip({
+  label,
+  value,
+  tone,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  tone?: "success" | "danger";
+  emphasis?: boolean;
+}) {
+  const toneClass =
+    tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-text";
+  return (
+    <div
+      className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 ${
+        emphasis ? "bg-primary/10 border border-primary/30" : ""
+      }`}
+    >
+      <span className="text-[10px] font-semibold text-text2 tracking-wide uppercase whitespace-nowrap">
+        {label}
+      </span>
+      <span className={`font-mono text-sm font-bold whitespace-nowrap ${emphasis ? "text-primary" : toneClass}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function LucroAcumuladoChart({ points }: { points: { label: string; value: number }[] }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  if (points.length < 2) {
     return (
-      <div className="h-32 flex items-center justify-center text-xs text-muted">
+      <div className="h-40 sm:h-44 flex items-center justify-center text-xs text-muted text-center px-6">
         Marque e feche mais operações para ver sua curva de lucro aqui.
       </div>
     );
   }
-  const w = 300;
-  const h = 110;
-  const min = Math.min(0, ...series);
-  const max = Math.max(0, ...series);
+
+  const values = points.map((p) => p.value);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
   const range = max - min || 1;
-  const points = series
-    .map((v, i) => {
-      const x = (i / (series.length - 1)) * w;
-      const y = h - ((v - min) / range) * h;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  const zeroY = h - ((0 - min) / range) * h;
-  const last = series[series.length - 1];
-  const stroke = last >= 0 ? "#16A34A" : "#DC2626";
+  const padPct = 10;
+  const plotPct = 100 - padPct * 2;
+
+  const xPct = (i: number) => (points.length > 1 ? (i / (points.length - 1)) * 100 : 50);
+  const yPct = (v: number) => padPct + plotPct - ((v - min) / range) * plotPct;
+  const zeroYPct = yPct(0);
+  const last = values[values.length - 1];
+  const color = last >= 0 ? "#16C784" : "#F0445E";
+
+  const lineStr = points.map((p, i) => `${xPct(i)},${yPct(p.value)}`).join(" ");
+  const areaStr = `${xPct(0)},${yPct(0)} ${lineStr} ${xPct(points.length - 1)},${yPct(0)}`;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-32" preserveAspectRatio="none">
-      <line x1="0" y1={zeroY} x2={w} y2={zeroY} stroke="#1E2938" strokeWidth="1" strokeDasharray="4 3" />
-      <polyline points={points} fill="none" stroke={stroke} strokeWidth="2" />
-    </svg>
+    <div
+      ref={ref}
+      className="relative h-40 sm:h-44 select-none"
+      onMouseMove={(e) => {
+        const rect = ref.current?.getBoundingClientRect();
+        if (!rect) return;
+        const relX = (e.clientX - rect.left) / rect.width;
+        const idx = Math.round(relX * (points.length - 1));
+        setHover(Math.min(points.length - 1, Math.max(0, idx)));
+      }}
+      onMouseLeave={() => setHover(null)}
+    >
+      <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="lucroFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0, 0.25, 0.5, 0.75, 1].map((g) => (
+          <line
+            key={g}
+            x1="0"
+            y1={g * 100}
+            x2="100"
+            y2={g * 100}
+            stroke="#1C2940"
+            strokeWidth="0.6"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        <polygon points={areaStr} fill="url(#lucroFill)" />
+        {min < 0 && max > 0 && (
+          <line
+            x1="0"
+            y1={zeroYPct}
+            x2="100"
+            y2={zeroYPct}
+            stroke="#66758A"
+            strokeWidth="0.7"
+            strokeDasharray="1.4 1.2"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        <polyline
+          points={lineStr}
+          fill="none"
+          stroke={color}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {hover !== null && (
+          <line
+            x1={xPct(hover)}
+            y1="2"
+            x2={xPct(hover)}
+            y2="98"
+            stroke="#2563EB"
+            strokeWidth="0.7"
+            strokeDasharray="1.4 1.2"
+            opacity="0.7"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+      </svg>
+      {hover !== null && (
+        <>
+          <span
+            className="absolute w-2.5 h-2.5 rounded-full border-2 pointer-events-none"
+            style={{
+              left: `${xPct(hover)}%`,
+              top: `${yPct(points[hover].value)}%`,
+              transform: "translate(-50%, -50%)",
+              background: color,
+              borderColor: "#0D1728",
+            }}
+          />
+          <div
+            className="absolute -translate-x-1/2 pointer-events-none bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[11px] shadow-lg whitespace-nowrap z-10"
+            style={{
+              left: `${xPct(hover)}%`,
+              top: `${yPct(points[hover].value)}%`,
+              transform: "translate(-50%, calc(-100% - 10px))",
+            }}
+          >
+            <div className="font-semibold font-mono">{fmtMoney(points[hover].value)}</div>
+            <div className="text-muted">{points[hover].label}</div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -143,11 +321,11 @@ export default function GestaoPage() {
   const reds = settled.length - greens;
   const assertividade = settled.length ? Math.round((greens / settled.length) * 100) : null;
 
-  const profitSeries = useMemo(() => {
+  const profitPoints = useMemo(() => {
     let running = 0;
     return settled.map((o) => {
       running += profitOf(o);
-      return running;
+      return { label: formatDataCurta(o.finalizada_em || o.created_at), value: running };
     });
   }, [settled]);
 
@@ -168,6 +346,17 @@ export default function GestaoPage() {
     if (greenOps.length === 0) return null;
     return Math.max(...greenOps.map((o) => oddEfetiva(o)));
   }, [settled]);
+
+  // Preview ao vivo do que o "Ajuste" vai fazer — mostra pra onde o saldo vai antes de
+  // confirmar, já que é fácil digitar o número errado e ele não descontar/lançar como lucro.
+  const ajustePreview = useMemo(() => {
+    if (tipoMovimento !== "ajuste") return null;
+    const parsed = parseFloat(valorMovimento.replace(",", "."));
+    if (isNaN(parsed) || parsed <= 0) return null;
+    const delta = parsed - saldoAtual;
+    if (delta === 0) return null;
+    return { parsed, delta };
+  }, [tipoMovimento, valorMovimento, saldoAtual]);
 
   async function salvarValor(op: OperationRow) {
     const raw = valores[op.id];
@@ -232,15 +421,19 @@ export default function GestaoPage() {
     return <div className="card p-7 text-center text-sm text-text2 max-w-3xl">Carregando…</div>;
   }
 
+  const deltaBanca = saldoAtual - (bancaInicial ?? 0);
+
   return (
-    <div className="flex flex-col gap-5 max-w-3xl">
+    <div className="flex flex-col gap-5 max-w-5xl">
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
-            <rect x="3" y="6" width="18" height="13" rx="2" />
-            <path d="M3 10h18" />
-            <circle cx="16" cy="14.5" r="1.3" fill="#2563EB" stroke="none" />
-          </svg>
+          <span className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="6" width="18" height="13" rx="2" />
+              <path d="M3 10h18" />
+              <circle cx="16" cy="14.5" r="1.3" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
           <span className="text-xs font-bold tracking-wide text-primary">GESTÃO</span>
         </div>
         <h1 className="text-2xl font-bold mb-1">Sua banca</h1>
@@ -250,53 +443,98 @@ export default function GestaoPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">BANCA INICIAL</div>
-          <div className="font-mono text-2xl font-semibold mt-2.5">
-            {bancaInicial === null ? "—" : `R$ ${bancaInicial.toFixed(2)}`}
+      {/* HERO: saldo em destaque + trilha de composição do saldo + curva de lucro, tudo num
+          único painel — em vez de 3 cards soltos + 1 card de gráfico, como era antes. */}
+      <div className="card relative overflow-hidden p-6 sm:p-7">
+        <div className="absolute -top-16 -right-10 w-64 h-64 bg-primary opacity-[0.10] blur-[80px] rounded-full pointer-events-none" />
+        <div className="relative flex flex-col gap-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-semibold text-text2 tracking-wide">SALDO ATUAL</div>
+              <div className="flex flex-wrap items-end gap-3 mt-1.5">
+                <span className="font-mono text-3xl sm:text-4xl font-bold">
+                  {bancaInicial === null ? "—" : fmtMoney(saldoAtual)}
+                </span>
+                {performancePct !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full mb-1 ${
+                      performancePct > 0
+                        ? "bg-success/10 text-success"
+                        : performancePct < 0
+                        ? "bg-danger/10 text-danger"
+                        : "bg-elevated text-text2"
+                    }`}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      className={performancePct < 0 ? "rotate-180" : ""}
+                    >
+                      <path d="M12 19V5M6 11l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {fmtPct(performancePct)}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted mt-1.5">
+                Performance considera só o lucro das operações — aportes e saques não entram na conta.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text2 bg-surface border border-border rounded-full px-3 py-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse flex-none" />
+              {greens} green{greens !== 1 ? "s" : ""} · {reds} red{reds !== 1 ? "s" : ""}
+              {assertividade !== null ? ` · ${assertividade}% de assertividade` : ""}
+            </div>
           </div>
-        </div>
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">SALDO ATUAL</div>
-          <div
-            className={`font-mono text-2xl font-semibold mt-2.5 ${
-              saldoAtual - (bancaInicial ?? 0) > 0
-                ? "text-success"
-                : saldoAtual - (bancaInicial ?? 0) < 0
-                ? "text-danger"
-                : ""
-            }`}
-          >
-            {bancaInicial === null ? "—" : `R$ ${saldoAtual.toFixed(2)}`}
+
+          {/* trilha: como o saldo atual foi composto */}
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2 bg-surface/70 border border-border rounded-xl px-3 sm:px-4 py-3">
+            <Chip label="Banca inicial" value={bancaInicial === null ? "—" : fmtMoney(bancaInicial)} />
+            <ArrowConnector />
+            <Chip
+              label="Lucro operações"
+              value={`${totalProfit > 0 ? "+" : ""}${fmtMoney(totalProfit)}`}
+              tone={totalProfit > 0 ? "success" : totalProfit < 0 ? "danger" : undefined}
+            />
+            <ArrowConnector />
+            <Chip
+              label="Aportes/saques"
+              value={`${totalMovimentos > 0 ? "+" : ""}${fmtMoney(totalMovimentos)}`}
+              tone={totalMovimentos > 0 ? "success" : totalMovimentos < 0 ? "danger" : undefined}
+            />
+            <ArrowConnector highlight />
+            <Chip label="Saldo atual" value={bancaInicial === null ? "—" : fmtMoney(saldoAtual)} emphasis />
           </div>
-        </div>
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">PERFORMANCE</div>
-          <div
-            className={`font-mono text-2xl font-semibold mt-2.5 ${
-              (performancePct ?? 0) > 0 ? "text-success" : (performancePct ?? 0) < 0 ? "text-danger" : ""
-            }`}
-          >
-            {performancePct === null ? "—" : `${performancePct >= 0 ? "+" : ""}${performancePct.toFixed(1)}%`}
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-text2 tracking-wide">LUCRO ACUMULADO</span>
+              <span
+                className={`text-[11px] font-mono font-semibold ${
+                  deltaBanca > 0 ? "text-success" : deltaBanca < 0 ? "text-danger" : "text-muted"
+                }`}
+              >
+                {settled.length > 0 ? `${totalProfit >= 0 ? "+" : ""}${fmtMoney(totalProfit)}` : ""}
+              </span>
+            </div>
+            <LucroAcumuladoChart points={profitPoints} />
           </div>
-          <p className="text-[10px] text-muted mt-1">Só considera o lucro das operações, não aportes/saques.</p>
         </div>
       </div>
 
       <div className="card p-6">
-        <div className="flex items-center justify-between mb-1">
-          <div className="text-xs font-semibold text-text2">LUCRO ACUMULADO</div>
-          <div className="text-[11px] text-muted">
-            {greens} green{greens !== 1 ? "s" : ""} · {reds} red{reds !== 1 ? "s" : ""}
-            {assertividade !== null ? ` · ${assertividade}% de assertividade` : ""}
-          </div>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="text-sm font-bold text-text2">MOVIMENTAR BANCA</span>
         </div>
-        <ProfitChart series={profitSeries} />
-      </div>
-
-      <div className="card p-6">
-        <div className="text-sm font-bold text-text2 mb-3">MOVIMENTAR BANCA</div>
 
         <div className="inline-flex bg-surface border border-border rounded-[10px] p-1 w-fit mb-3">
           {(["aporte", "saque", "ajuste"] as BancaMovimentoTipo[]).map((t) => (
@@ -306,10 +544,11 @@ export default function GestaoPage() {
                 setTipoMovimento(t);
                 setErroMovimento(null);
               }}
-              className={`px-4 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors ${
                 tipoMovimento === t ? "bg-primary text-white" : "text-text2 hover:text-text"
               }`}
             >
+              {MOVIMENTO_ICON[t]}
               {MOVIMENTO_LABEL[t]}
             </button>
           ))}
@@ -357,66 +596,50 @@ export default function GestaoPage() {
             </button>
           </div>
         </div>
+
+        {ajustePreview && (
+          <div
+            className={`mt-2.5 text-[11.5px] rounded-lg px-3 py-2 border flex items-center gap-1.5 ${
+              ajustePreview.delta > 0
+                ? "bg-success/5 border-success/30 text-success"
+                : "bg-danger/5 border-danger/30 text-danger"
+            }`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-none">
+              <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" strokeLinejoin="round" />
+            </svg>
+            Saldo vai de <strong className="font-mono">{fmtMoney(saldoAtual)}</strong> para{" "}
+            <strong className="font-mono">{fmtMoney(ajustePreview.parsed)}</strong> — não conta como
+            lucro nem prejuízo.
+          </div>
+        )}
         {erroMovimento && <p className="text-xs text-danger mt-2">{erroMovimento}</p>}
 
         {movimentos.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2 max-h-64 overflow-y-auto">
-            {movimentos.map((m) => (
-              <div key={m.id} className="flex items-center justify-between text-xs gap-2">
-                <div className="min-w-0">
-                  <span className="font-semibold">{MOVIMENTO_LABEL[m.tipo]}</span>
-                  <span className="text-muted"> · {formatData(m.created_at)}</span>
-                  {m.nota && <span className="text-muted truncate"> · {m.nota}</span>}
-                </div>
-                <span className={`font-mono flex-none ${m.valor > 0 ? "text-success" : m.valor < 0 ? "text-danger" : "text-muted"}`}>
-                  {m.valor > 0 ? "+" : ""}
-                  R$ {m.valor.toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <div className="text-sm font-bold text-text2 mb-3">
-          OPERAÇÕES EM ANDAMENTO ({andamento.length})
-        </div>
-        {andamento.length === 0 ? (
-          <div className="card p-7 text-center text-sm text-text2">
-            Nenhuma operação em andamento agora. Marque um sinal em Eventos para começar.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {andamento.map((op) => (
-              <div key={op.id} className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate flex items-center gap-1.5">
-                    {op.signals.tipo === "bilhete" && (
-                      <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex-none">
-                        BILHETE
-                      </span>
-                    )}
-                    {op.signals.tipo === "bilhete"
-                      ? op.signals.time_b
-                      : `${op.signals.time_a} x ${op.signals.time_b}`}
-                  </div>
-                  <div className="text-xs text-text2 mt-0.5">
-                    {op.signals.tipo === "bilhete" ? "Combinados" : op.signals.mercado} · ODD {oddEfetiva(op)}
-                  </div>
-                </div>
-                <div className="flex-none flex items-center gap-2">
-                  <span className="text-xs text-muted font-mono">R$</span>
-                  <input
-                    className="input-field w-24 text-sm font-mono py-1.5"
-                    value={valores[op.id] ?? ""}
-                    onChange={(e) =>
-                      setValores((prev) => ({ ...prev, [op.id]: e.target.value.replace(/[^0-9.,]/g, "") }))
-                    }
-                    onBlur={() => salvarValor(op)}
+          <div className="mt-4 pt-4 border-t border-border max-h-64 overflow-y-auto pr-1">
+            {movimentos.map((m, i) => (
+              <div key={m.id} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full flex-none ${
+                      m.valor > 0 ? "bg-success" : m.valor < 0 ? "bg-danger" : "bg-muted"
+                    }`}
                   />
-                  <span className="text-[10px] text-success font-semibold w-12">
-                    {savingId === op.id ? "Salvando…" : savedId === op.id ? "Salvo ✓" : ""}
+                  {i < movimentos.length - 1 && <span className="w-px flex-1 bg-border mt-1" />}
+                </div>
+                <div className="flex-1 min-w-0 pb-3 flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <span className="font-semibold">{MOVIMENTO_LABEL[m.tipo]}</span>
+                    <span className="text-muted"> · {formatData(m.created_at)}</span>
+                    {m.nota && <div className="text-muted truncate">{m.nota}</div>}
+                  </div>
+                  <span
+                    className={`font-mono flex-none ${
+                      m.valor > 0 ? "text-success" : m.valor < 0 ? "text-danger" : "text-muted"
+                    }`}
+                  >
+                    {m.valor > 0 ? "+" : ""}
+                    {fmtMoney(m.valor)}
                   </span>
                 </div>
               </div>
@@ -426,36 +649,131 @@ export default function GestaoPage() {
       </div>
 
       <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse flex-none" />
+          <span className="text-sm font-bold text-text2">OPERAÇÕES EM ANDAMENTO ({andamento.length})</span>
+        </div>
+        {andamento.length === 0 ? (
+          <div className="card p-7 text-center text-sm text-text2">
+            Nenhuma operação em andamento agora. Marque um sinal em Eventos para começar.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {andamento.map((op) => {
+              const parsedVal = parseFloat((valores[op.id] || "").replace(",", ".")) || 0;
+              const retorno = parsedVal * oddEfetiva(op);
+              return (
+                <div
+                  key={op.id}
+                  className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-transform hover:-translate-y-0.5"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate flex items-center gap-1.5">
+                      {op.signals.tipo === "bilhete" && (
+                        <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex-none">
+                          BILHETE
+                        </span>
+                      )}
+                      {op.signals.tipo === "bilhete"
+                        ? op.signals.time_b
+                        : `${op.signals.time_a} x ${op.signals.time_b}`}
+                    </div>
+                    <div className="text-xs text-text2 mt-0.5">
+                      {op.signals.tipo === "bilhete" ? "Combinados" : op.signals.mercado} · ODD {oddEfetiva(op)}
+                    </div>
+                  </div>
+                  <div className="flex-none flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted font-mono">R$</span>
+                      <input
+                        className="input-field w-24 text-sm font-mono py-1.5"
+                        value={valores[op.id] ?? ""}
+                        onChange={(e) =>
+                          setValores((prev) => ({ ...prev, [op.id]: e.target.value.replace(/[^0-9.,]/g, "") }))
+                        }
+                        onBlur={() => salvarValor(op)}
+                      />
+                      <span className="text-[10px] text-success font-semibold w-14">
+                        {savingId === op.id ? "Salvando…" : savedId === op.id ? "Salvo ✓" : ""}
+                      </span>
+                    </div>
+                    {retorno > 0 && (
+                      <div className="text-[10px] text-muted">
+                        Retorno potencial: <span className="font-mono text-text2">{fmtMoney(retorno)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
         <div className="text-sm font-bold text-text2 mb-3">CONQUISTAS</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="card p-5">
-            <div className="text-xs font-semibold text-text2">SEQUÊNCIA ATUAL</div>
-            <div className="font-mono text-xl font-semibold mt-2 text-success">
-              {currentStreak > 0 ? `${currentStreak} green${currentStreak !== 1 ? "s" : ""} seguido${currentStreak !== 1 ? "s" : ""}` : "—"}
+            <div className="flex items-center gap-2 text-text2">
+              <span className="w-8 h-8 rounded-lg bg-success/10 text-success flex items-center justify-center flex-none">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M12 2c2 3-1 4-1 6 0 1.5 1.2 2 2 2 1.5 0 2.5-1.3 2.5-3 2 2 3 4.5 3 7a6.5 6.5 0 01-13 0c0-4 2-6 2.5-8 .3 1.5 1.3 2 2 1.5-.5-2 .5-4 2-5.5z" />
+                </svg>
+              </span>
+              <span className="text-xs font-semibold">SEQUÊNCIA ATUAL</span>
+            </div>
+            <div className="font-mono text-xl font-semibold mt-2.5 text-success">
+              {currentStreak > 0
+                ? `${currentStreak} green${currentStreak !== 1 ? "s" : ""} seguido${currentStreak !== 1 ? "s" : ""}`
+                : "—"}
             </div>
             <p className="text-[11px] text-muted mt-1">Contando a partir da sua operação mais recente.</p>
           </div>
           <div className="card p-5">
-            <div className="text-xs font-semibold text-text2">MAIOR ODD GREENADA</div>
-            <div className="font-mono text-xl font-semibold mt-2">{maiorOdd === null ? "—" : maiorOdd}</div>
+            <div className="flex items-center gap-2 text-text2">
+              <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-none">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 5H4a3 3 0 003 3M17 5h3a3 3 0 01-3 3" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="text-xs font-semibold">MAIOR ODD GREENADA</span>
+            </div>
+            <div className="font-mono text-xl font-semibold mt-2.5">{maiorOdd === null ? "—" : maiorOdd}</div>
             <p className="text-[11px] text-muted mt-1">Sua melhor operação fechada com green.</p>
           </div>
-          <div className="card p-5 opacity-60">
+          <div className="card p-5 border-dashed border-2 border-border/70 bg-transparent shadow-none">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold text-text2">DISCIPLINA DE RISCO</div>
+              <div className="flex items-center gap-2 text-text2">
+                <span className="w-8 h-8 rounded-lg bg-elevated text-muted flex items-center justify-center flex-none">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z" />
+                  </svg>
+                </span>
+                <span className="text-xs font-semibold">DISCIPLINA DE RISCO</span>
+              </div>
               <span className="text-[9px] font-bold text-muted bg-elevated px-2 py-0.5 rounded">EM BREVE</span>
             </div>
-            <div className="font-mono text-xl font-semibold mt-2">—</div>
+            <div className="font-mono text-xl font-semibold mt-2.5 text-muted">—</div>
             <p className="text-[11px] text-muted mt-1">
               Vamos comparar o valor de cada operação com o recomendado para sua banca.
             </p>
           </div>
-          <div className="card p-5 opacity-60">
+          <div className="card p-5 border-dashed border-2 border-border/70 bg-transparent shadow-none">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold text-text2">META DE BANCA</div>
+              <div className="flex items-center gap-2 text-text2">
+                <span className="w-8 h-8 rounded-lg bg-elevated text-muted flex items-center justify-center flex-none">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="5" />
+                    <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+                  </svg>
+                </span>
+                <span className="text-xs font-semibold">META DE BANCA</span>
+              </div>
               <span className="text-[9px] font-bold text-muted bg-elevated px-2 py-0.5 rounded">EM BREVE</span>
             </div>
-            <div className="font-mono text-xl font-semibold mt-2">—</div>
+            <div className="font-mono text-xl font-semibold mt-2.5 text-muted">—</div>
             <p className="text-[11px] text-muted mt-1">
               Em breve você vai poder definir uma meta de crescimento e acompanhar o progresso aqui.
             </p>
