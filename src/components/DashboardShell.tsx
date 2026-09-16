@@ -64,14 +64,15 @@ export function DashboardShell({
         </div>
 
         {/* Header de desktop — some no mobile (hidden, md:flex). */}
-        <div className="h-16 flex-none hidden md:flex items-center justify-end px-8 border-b border-border">
+        <div className="h-16 flex-none hidden md:flex items-center justify-end px-8 border-b border-border bg-gradient-to-r from-transparent to-bg2/40">
           <div
-            className={`rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide border ${
+            className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide border ${
               subscribed
                 ? "bg-success/10 border-success text-success"
                 : "bg-elevated border-border text-text2"
             }`}
           >
+            <span className={`w-1.5 h-1.5 rounded-full ${subscribed ? "bg-success animate-pulse" : "bg-muted"}`} />
             {subscribed ? "ASSINATURA ATIVA" : "CONTA GRATUITA"}
           </div>
         </div>
