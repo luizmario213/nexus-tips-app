@@ -24,6 +24,42 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
+// Texto de contexto de horário por sinal — puramente derivado de `horario_jogo` e do
+// relógio `now` que já existe no componente, sem nenhum estado novo.
+function tempoContexto(signal: Signal, now: number, aoVivo: boolean): string | null {
+  if (!signal.horario_jogo) return null;
+  const diffMs = new Date(signal.horario_jogo).getTime() - now;
+  const diffMin = Math.round(Math.abs(diffMs) / 60000);
+  if (aoVivo) {
+    if (diffMs > 0) return null; // ao vivo manual, sem horário de referência pra "há quanto tempo"
+    if (diffMin < 60) return `Ao vivo há ${diffMin}min`;
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    return `Ao vivo há ${h}h${m > 0 ? ` ${m}min` : ""}`;
+  }
+  if (diffMs <= 0) return null;
+  if (diffMin < 60) return `Começa em ${diffMin}min`;
+  const h = Math.floor(diffMin / 60);
+  const m = diffMin % 60;
+  return `Começa em ${h}h${m > 0 ? ` ${m}min` : ""}`;
+}
+
+const SkeletonCard = () => (
+  <div className="card p-5 animate-pulse">
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="h-2.5 w-24 bg-elevated rounded mb-3" />
+        <div className="h-4 w-40 bg-elevated rounded mb-2" />
+        <div className="h-3 w-28 bg-elevated rounded" />
+      </div>
+      <div className="flex flex-col items-end gap-1.5 flex-none">
+        <div className="h-5 w-16 bg-elevated rounded-full" />
+        <div className="h-7 w-12 bg-elevated rounded-md" />
+      </div>
+    </div>
+  </div>
+);
+
 export default function EventosPage() {
   const supabase = createClient();
   const [signals, setSignals] = useState<SignalRow[]>([]);
@@ -201,25 +237,37 @@ export default function EventosPage() {
     return true;
   });
   const vivoCount = signals.filter(estaAoVivo).length;
+  const publicadosHoje = signals.filter(
+    (s) => new Date(s.created_at).toDateString() === new Date(now).toDateString()
+  ).length;
+  const oddMedia = signals.length
+    ? (signals.reduce((acc, s) => acc + s.odd, 0) / signals.length).toFixed(2)
+    : "—";
 
   const header = (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
-          <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" strokeLinejoin="round" />
-        </svg>
-        <span className="text-xs font-bold tracking-wide text-primary">EVENTOS</span>
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+            <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" strokeLinejoin="round" />
+          </svg>
+          <span className="text-xs font-bold tracking-wide text-primary">EVENTOS</span>
+        </div>
+        <h1 className="text-2xl font-bold mb-1">Sinais monitorados</h1>
+        <p className="text-text2 text-sm">
+          Atualiza automaticamente assim que um novo sinal é publicado.
+        </p>
       </div>
-      <h1 className="text-2xl font-bold mb-1">Sinais monitorados</h1>
-      <p className="text-text2 text-sm">
-        Atualiza automaticamente assim que um novo sinal é publicado.
-      </p>
+      <span className="flex items-center gap-1.5 text-[10.5px] font-bold text-success bg-success/10 border border-success/30 rounded-full px-3 py-1.5 flex-none w-fit">
+        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+        TEMPO REAL ATIVO
+      </span>
     </div>
   );
 
   if (!loading && !subscribed) {
     return (
-      <div className="flex flex-col gap-5 max-w-3xl">
+      <div className="flex flex-col gap-5 max-w-4xl">
         {header}
         <div className="relative">
           <div
@@ -259,8 +307,34 @@ export default function EventosPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-3xl">
+    <div className="flex flex-col gap-5 max-w-4xl">
       {header}
+
+      {/* Tira de status — dá densidade e reforça que isso é um painel vivo, não uma lista estática */}
+      <div className="card relative overflow-hidden p-4">
+        <div className="absolute -top-14 -right-10 w-40 h-40 bg-primary opacity-[0.08] blur-[60px] rounded-full pointer-events-none" />
+        <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">SINAIS NO AR</div>
+            <div className="font-mono text-lg font-semibold mt-1">{signals.length}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">AO VIVO AGORA</div>
+            <div className="font-mono text-lg font-semibold mt-1 flex items-center gap-1.5">
+              {vivoCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />}
+              <span className={vivoCount > 0 ? "text-danger" : ""}>{vivoCount}</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">PUBLICADOS HOJE</div>
+            <div className="font-mono text-lg font-semibold mt-1">{publicadosHoje}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">ODD MÉDIA</div>
+            <div className="font-mono text-lg font-semibold mt-1">{oddMedia}</div>
+          </div>
+        </div>
+      </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex bg-surface border border-border rounded-[10px] p-1 w-fit">
@@ -288,7 +362,11 @@ export default function EventosPage() {
       </div>
 
       {loading ? (
-        <div className="card p-7 text-center text-sm text-text2">Carregando…</div>
+        <div className="flex flex-col gap-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       ) : filteredSignals.length === 0 ? (
         <div className="card p-7 text-center text-sm text-text2">
           {signals.length === 0
@@ -304,6 +382,8 @@ export default function EventosPage() {
             const legs = (signal.signal_legs || []).slice().sort((a, b) => a.ordem - b.ordem);
             const sugestao = sugestaoDoSinal(signal, bancaAtual);
             const formAberto = openFormId === signal.id;
+            const aoVivo = estaAoVivo(signal);
+            const contexto = tempoContexto(signal, now, aoVivo);
 
             return (
               <div
@@ -313,7 +393,7 @@ export default function EventosPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {estaAoVivo(signal) && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-none" />}
+                      {aoVivo && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-none" />}
                       {isBilhete && (
                         <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                           BILHETE
@@ -322,6 +402,9 @@ export default function EventosPage() {
                       <span className="text-[10px] text-muted font-semibold tracking-wide">
                         {signal.competicao}
                       </span>
+                      {contexto && (
+                        <span className="text-[10px] text-info font-semibold tracking-wide">· {contexto}</span>
+                      )}
                     </div>
 
                     {isBilhete ? (
@@ -357,7 +440,7 @@ export default function EventosPage() {
                         statusColor[signal.status]
                       }`}
                     >
-                      {estaAoVivo(signal) ? "AO VIVO · " : ""}
+                      {aoVivo ? "AO VIVO · " : ""}
                       {statusLabel[signal.status]}
                     </span>
                     <span className="bg-elevated border border-border rounded-md px-2.5 py-1 font-mono text-base font-semibold">
