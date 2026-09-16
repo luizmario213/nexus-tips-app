@@ -481,7 +481,7 @@ export default function GestaoPage() {
                 )}
               </div>
               <p className="text-[11px] text-muted mt-1.5">
-                Performance considera só o lucro das operações — aportes e saques não entram na conta.
+                Resultado considera só o lucro das operações — aportes e saques não entram na conta.
               </p>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text2 bg-surface border border-border rounded-full px-3 py-1.5">
