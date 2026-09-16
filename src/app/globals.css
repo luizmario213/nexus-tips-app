@@ -61,3 +61,21 @@ body {
     border-color: #2563eb;
   }
 }
+
+/* Ticker de sinais na Visão Geral — puro CSS, sem JS: a faixa contém a lista duplicada
+   (ver o componente) e desliza -50% da própria largura, então o corte é invisível e o
+   loop é contínuo. Pausa no hover pra dar tempo de ler. */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee-scroll 32s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
