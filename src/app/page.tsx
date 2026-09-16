@@ -74,6 +74,187 @@ const ETAPAS = [
   { n: "06", t: "Resultado em 30 dias", d: "A assertividade do período fica pública, sempre atualizada." },
 ];
 
+// Motor de correlação exibido na demo do hero: um núcleo central ("IA Nexus") e 5 agentes
+// satélite, cada um puxando uma fonte de dado diferente. As posições são coordenadas fixas
+// num círculo de raio ENGINE_RADIUS ao redor de ENGINE_CENTER — geometria de um pentágono
+// regular, calculada uma vez e reaproveitada tanto pros nós quanto pras linhas de conexão.
+const ENGINE_CENTER = { x: 150, y: 116 };
+const ENGINE_RADIUS = 80;
+
+const AGENTES = [
+  { id: "jogos", label: "Jogos do dia", angle: -90 },
+  { id: "stats", label: "Estatísticas", angle: -18 },
+  { id: "odds", label: "Odds do mercado", angle: 54 },
+  { id: "historico", label: "Histórico", angle: 126 },
+  { id: "oportunidade", label: "Oportunidades", angle: 198 },
+] as const;
+
+function agentPos(angle: number) {
+  const rad = (angle * Math.PI) / 180;
+  return {
+    x: ENGINE_CENTER.x + ENGINE_RADIUS * Math.cos(rad),
+    y: ENGINE_CENTER.y + ENGINE_RADIUS * Math.sin(rad),
+  };
+}
+
+// Uma legenda por etapa — sincronizada com o índice que acende cada agente (as 5 primeiras)
+// mais uma etapa final de correlação no núcleo, antes de revelar a análise.
+const CAPTIONS = [
+  "Varrendo os jogos do dia…",
+  "Cruzando estatísticas das equipes…",
+  "Puxando as odds do mercado…",
+  "Consultando histórico de confrontos…",
+  "Mapeando oportunidades de valor…",
+  "Correlacionando tudo — sinal aprovado…",
+];
+
+const AGENT_ICONS: Record<(typeof AGENTES)[number]["id"], React.ReactNode> = {
+  jogos: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
+    </svg>
+  ),
+  stats: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 20V10M12 20V4M20 20v-7" strokeLinecap="round" />
+    </svg>
+  ),
+  odds: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M19 5L5 19" strokeLinecap="round" />
+      <circle cx="7" cy="7" r="2.3" />
+      <circle cx="17" cy="17" r="2.3" />
+    </svg>
+  ),
+  historico: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  oportunidade: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.6" fill="currentColor" />
+    </svg>
+  ),
+};
+
+// SVG do "cérebro" — um chip/núcleo, não um desenho literal de cérebro, pra ficar
+// consistente com a linha visual técnica do resto do produto (sem ilustração fofa).
+const ChipIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <rect x="7" y="7" width="10" height="10" rx="2" />
+    <path
+      d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+// O diagrama de correlação em si: núcleo central pulsando + 5 agentes ao redor, com a
+// linha de cada um "se desenhando" até o centro conforme ele entra em `stepIndex`. Cada
+// linha usa stroke-dasharray igual ao próprio comprimento e anima o dashoffset até 0 —
+// truque clássico de "desenhar" uma linha em CSS sem depender de nenhuma lib externa.
+function CorrelationEngine({ stepIndex }: { stepIndex: number }) {
+  return (
+    <div className="bg-elevated rounded-lg p-4">
+      <svg viewBox="0 0 300 232" className="w-full h-auto select-none" aria-hidden>
+        {AGENTES.map((agent, i) => {
+          const pos = agentPos(agent.angle);
+          const length = Math.hypot(ENGINE_CENTER.x - pos.x, ENGINE_CENTER.y - pos.y);
+          const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
+          const connected = state !== "pending";
+          return (
+            <line
+              key={`line-${agent.id}`}
+              x1={pos.x}
+              y1={pos.y}
+              x2={ENGINE_CENTER.x}
+              y2={ENGINE_CENTER.y}
+              stroke={connected ? "#2563EB" : "#1C2940"}
+              strokeWidth={connected ? 1.6 : 1.2}
+              strokeDasharray={length}
+              strokeDashoffset={connected ? 0 : length}
+              style={{ transition: "stroke-dashoffset 550ms ease, stroke 300ms ease" }}
+            />
+          );
+        })}
+
+        {/* Núcleo — chip central com anel pulsando enquanto o motor trabalha. */}
+        <circle
+          cx={ENGINE_CENTER.x}
+          cy={ENGINE_CENTER.y}
+          r={26}
+          fill="#2563EB"
+          opacity={0.15}
+          className="animate-ping"
+          style={{ transformOrigin: `${ENGINE_CENTER.x}px ${ENGINE_CENTER.y}px` }}
+        />
+        <circle cx={ENGINE_CENTER.x} cy={ENGINE_CENTER.y} r={22} fill="#0D1728" stroke="#2563EB" strokeWidth={1.6} />
+        <foreignObject x={ENGINE_CENTER.x - 11} y={ENGINE_CENTER.y - 11} width="22" height="22">
+          <div className="w-full h-full flex items-center justify-center text-primary">
+            <ChipIcon />
+          </div>
+        </foreignObject>
+
+        {AGENTES.map((agent, i) => {
+          const pos = agentPos(agent.angle);
+          const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
+          const ringColor = state === "done" ? "#16C784" : state === "active" ? "#2563EB" : "#1C2940";
+          const iconColor = state === "pending" ? "text-muted" : state === "active" ? "text-primary" : "text-success";
+          return (
+            <g key={`node-${agent.id}`}>
+              <circle
+                cx={pos.x}
+                cy={pos.y}
+                r={17}
+                fill="#0D1728"
+                stroke={ringColor}
+                strokeWidth={1.6}
+                className={state === "active" ? "animate-pulse" : ""}
+                style={{ transition: "stroke 300ms ease" }}
+              />
+              <foreignObject x={pos.x - 9} y={pos.y - 9} width="18" height="18">
+                <div className={`w-full h-full flex items-center justify-center ${iconColor}`} style={{ transition: "color 300ms ease" }}>
+                  {AGENT_ICONS[agent.id]}
+                </div>
+              </foreignObject>
+              <text
+                x={pos.x}
+                y={pos.y + 29}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight={700}
+                fill={state === "pending" ? "#66758A" : "#9AA8BC"}
+                style={{ transition: "fill 300ms ease" }}
+              >
+                {agent.label.toUpperCase()}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="flex items-center gap-2 mt-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse flex-none" />
+        <span className="text-[12px] font-semibold text-text2">{CAPTIONS[stepIndex]}</span>
+      </div>
+      <div className="h-[3px] bg-bg rounded-full mt-2.5 overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full"
+          style={{
+            width: `${((stepIndex + 1) / CAPTIONS.length) * 100}%`,
+            transition: "width 400ms ease",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const FAQ_RAPIDO = [
   {
     p: "A Nexus Tips promete lucro?",
@@ -157,26 +338,17 @@ export default function LandingPage() {
   const [stepIndex, setStepIndex] = useState(0);
   const demo = DEMO_SIGNALS[demoIndex];
 
-  // O "loading" não é mais um spinner genérico — é uma esteira de etapas que aparece uma
-  // de cada vez, simulando o motor de verdade: procura o jogo, acha a oportunidade,
-  // cruza dados das equipes, filtra e só then entrega a análise. Reforça na demo o que a
-  // Nexus faz de fato antes de publicar um sinal.
-  const pipeline = [
-    { label: "Buscando jogos do dia" },
-    { label: "Oportunidade encontrada", detail: `${demo.timeA} x ${demo.timeB}` },
-    { label: "Analisando dados das equipes" },
-    { label: "Cruzando contexto e histórico" },
-    { label: "Filtrando por valor esperado" },
-    { label: "Sinal aprovado", detail: demo.estrategia },
-  ];
-
+  // O "loading" virou o motor de correlação: os 5 agentes (jogos, estatísticas, odds,
+  // histórico, oportunidades) acendem um de cada vez — CAPTIONS.length é 6 porque depois
+  // dos 5 agentes ainda tem uma última etapa de "correlacionando no núcleo" antes de
+  // revelar a análise.
   useEffect(() => {
     if (demoStage !== "loading") return;
-    if (stepIndex >= pipeline.length - 1) {
-      const t = setTimeout(() => setDemoStage("result"), 550);
+    if (stepIndex >= CAPTIONS.length - 1) {
+      const t = setTimeout(() => setDemoStage("result"), 650);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setStepIndex((i) => i + 1), 380);
+    const t = setTimeout(() => setStepIndex((i) => i + 1), 480);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoStage, stepIndex]);
@@ -269,96 +441,95 @@ export default function LandingPage() {
 
           <div className="flex-1 flex justify-center relative w-full">
             <div className="absolute top-5 w-72 h-72 bg-primary opacity-[0.16] blur-[60px] rounded-full pointer-events-none" />
-            <div className="relative card p-7 w-full max-w-[360px] shadow-2xl">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-[11px] font-bold tracking-wide text-info">{demo.comp}</div>
-                <span className="text-[9px] font-bold text-muted bg-elevated px-2 py-0.5 rounded">DEMO</span>
-              </div>
-              <div className="mt-3 text-xl font-bold">{demo.timeA}</div>
-              <div className="text-muted text-sm my-0.5">x</div>
-              <div className="text-xl font-bold">{demo.timeB}</div>
-              <div className="h-px bg-border my-5" />
-              <div className="flex justify-between items-end">
-                <div>
-                  <div className="text-[11px] text-muted uppercase tracking-wide">Mercado</div>
-                  <div className="text-[15px] font-semibold mt-1.5">{demo.mercado}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[11px] text-muted uppercase tracking-wide">Odd</div>
-                  <div className="font-mono text-2xl font-semibold mt-0.5">{demo.odd}</div>
-                </div>
-              </div>
+            {/* Esse card usa literalmente a mesma linguagem visual do card de sinal de
+                verdade (ver src/app/dashboard/eventos/page.tsx: eyebrow + jogo numa linha só
+                + pill de status + chip mono da odd) — de propósito, pra não parecer um
+                mockup inventado só pra demo. */}
+            <div
+              className={`relative card p-5 w-full max-w-[380px] transition-colors ${
+                demoStage === "result"
+                  ? "border-l-2 border-l-info"
+                  : demoStage === "loading"
+                  ? "border-l-2 border-l-primary"
+                  : ""
+              }`}
+            >
+              {demoStage !== "result" && (
+                <span className="absolute top-4 right-4 text-[9px] font-bold text-muted bg-elevated px-1.5 py-0.5 rounded z-10">
+                  DEMO
+                </span>
+              )}
 
               {demoStage === "idle" && (
-                <button onClick={startDemo} className="btn-primary w-full text-sm py-3.5 mt-5">
-                  Ver a análise por trás do sinal
-                </button>
-              )}
-
-              {demoStage === "loading" && (
-                <div className="mt-5 bg-elevated rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                    <span className="text-[10px] font-bold tracking-widest text-primary">
-                      MOTOR NEXUS ANALISANDO
-                    </span>
+                <div className="flex flex-col items-center text-center gap-3.5 py-5">
+                  <div className="w-11 h-11 rounded-full bg-elevated border border-border flex items-center justify-center">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-text2">
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
+                    </svg>
                   </div>
-                  <div className="flex flex-col gap-2.5">
-                    {pipeline.map((step, i) => {
-                      const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
-                      return (
-                        <div
-                          key={step.label}
-                          className={`flex items-center gap-2.5 transition-opacity duration-300 ${
-                            state === "pending" ? "opacity-30" : "opacity-100"
-                          }`}
-                        >
-                          <span className="w-4 h-4 flex-none flex items-center justify-center">
-                            {state === "done" && (
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-success">
-                                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                            {state === "active" && (
-                              <span className="w-[13px] h-[13px] rounded-full border-2 border-primary/25 border-t-primary animate-spin" />
-                            )}
-                            {state === "pending" && <span className="w-1.5 h-1.5 rounded-full bg-muted" />}
-                          </span>
-                          <span
-                            className={`text-[12.5px] ${
-                              state === "active"
-                                ? "font-semibold text-text"
-                                : state === "done"
-                                ? "text-text2"
-                                : "text-muted"
-                            }`}
-                          >
-                            {step.label}
-                            {step.detail && state !== "pending" && (
-                              <span className="text-muted"> — {step.detail}</span>
-                            )}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div>
+                    <div className="text-sm font-bold">Nenhuma oportunidade selecionada</div>
+                    <p className="text-xs text-text2 mt-1.5 max-w-[250px] leading-relaxed">
+                      Clique e deixe o motor cruzar jogos, estatísticas, odds e histórico até
+                      encontrar um sinal com valor.
+                    </p>
                   </div>
+                  <button
+                    onClick={startDemo}
+                    className="btn-primary text-sm py-3 px-6 mt-1 inline-flex items-center gap-2"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="flex-none">
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
+                    </svg>
+                    Procurar uma oportunidade
+                  </button>
                 </div>
               )}
+
+              {demoStage === "loading" && <CorrelationEngine stepIndex={stepIndex} />}
 
               {demoStage === "result" && (
                 <>
-                  <div className="mt-4.5 bg-primary/[0.08] border border-primary/30 rounded-[10px] p-4">
-                    <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] font-bold text-muted bg-elevated px-1.5 py-0.5 rounded flex-none">
+                          DEMO
+                        </span>
+                        <span className="text-[10px] text-muted font-semibold tracking-wide">{demo.comp}</span>
+                      </div>
+                      <div className="text-sm font-bold mt-1">
+                        {demo.timeA} x {demo.timeB}
+                      </div>
+                      <div className="text-xs text-text2 mt-1">
+                        <span className="font-semibold text-text">{demo.mercado}</span>
+                      </div>
+                    </div>
+                    <div className="flex-none flex flex-col items-end gap-1.5">
+                      <span className="text-[10px] font-bold tracking-wide rounded-full px-2.5 py-1 border whitespace-nowrap bg-info/10 border-info text-info">
+                        NO AR
+                      </span>
+                      <span className="bg-elevated border border-border rounded-md px-2.5 py-1 font-mono text-base font-semibold">
+                        {demo.odd}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3.5 pt-3.5 border-t border-border">
+                    <div className="flex items-center justify-between mb-2 gap-2">
                       <span className="text-[10.5px] font-bold tracking-wide text-primary">
                         POR QUE ESSE SINAL FOI APROVADO
                       </span>
-                      <span className="text-[9.5px] font-bold text-muted bg-elevated px-2 py-1 rounded">
+                      <span className="text-[9.5px] font-bold text-muted bg-elevated px-2 py-1 rounded flex-none">
                         {demo.estrategia}
                       </span>
                     </div>
-                    <p className="text-[12.5px] text-text2 leading-relaxed mt-2.5">{demo.rationale}</p>
+                    <p className="text-[12.5px] text-text2 leading-relaxed">{demo.rationale}</p>
                   </div>
-                  <button onClick={nextDemo} className="btn-outline w-full text-[13px] py-3 mt-3">
+
+                  <button onClick={nextDemo} className="btn-outline w-full text-[13px] py-2.5 mt-3.5">
                     Ver outro exemplo
                   </button>
                   <div className="text-[10.5px] text-muted text-center mt-2.5">
