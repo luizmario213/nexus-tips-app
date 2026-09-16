@@ -63,57 +63,101 @@ export default async function VisaoGeralPage() {
           <span className="text-xs font-bold tracking-wide text-primary">VISÃO GERAL</span>
         </div>
         <h1 className="text-2xl font-bold mb-1">Sua operação em um lugar só</h1>
-        <p className="text-text2 text-sm">
-          Assinatura e operações em andamento, de relance.
-        </p>
+        <p className="text-text2 text-sm">Assinatura, operações em andamento e resultado, de relance.</p>
       </div>
 
-      <div className="card p-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${subscribed ? "bg-success" : "bg-muted"}`}
-          />
-          <div>
-            <div className="text-sm font-bold">
-              {activeSub
-                ? `Assinatura ativa — ${activeSub.plano}`
-                : subscribed
-                ? "Acesso liberado — conta admin"
-                : "Assinatura inativa"}
+      {/* HERO: status da assinatura + mini stats, num card só */}
+      <div className="card relative overflow-hidden p-6">
+        <div className="absolute -top-20 -right-16 w-56 h-56 bg-primary opacity-[0.10] blur-[70px] rounded-full pointer-events-none" />
+        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div className="flex items-center gap-3.5">
+            <div
+              className={`w-11 h-11 rounded-full flex-none flex items-center justify-center border ${
+                subscribed ? "bg-success/10 border-success/30" : "bg-elevated border-border"
+              }`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full ${subscribed ? "bg-success animate-pulse" : "bg-muted"}`} />
             </div>
-            <div className="text-xs text-text2 mt-0.5">
-              {subscribed
-                ? "Eventos e marcação de operações liberados."
-                : "Assine um plano para liberar os eventos monitorados."}
+            <div>
+              <div className="text-sm font-bold">
+                {activeSub
+                  ? `Assinatura ativa — ${activeSub.plano}`
+                  : subscribed
+                  ? "Acesso liberado — conta admin"
+                  : "Assinatura inativa"}
+              </div>
+              <div className="text-xs text-text2 mt-0.5">
+                {subscribed
+                  ? "Eventos e marcação de operações liberados."
+                  : "Assine um plano para liberar os eventos monitorados."}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-none">
+            <Link
+              href="/dashboard/eventos"
+              className="btn-outline flex items-center gap-1.5 text-xs px-4 py-2.5 whitespace-nowrap"
+            >
+              Ir para Eventos
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+            <Link
+              href="/dashboard/planos"
+              className={
+                activeSub
+                  ? "btn-outline text-xs px-4 py-2.5 whitespace-nowrap"
+                  : "btn-primary text-xs px-4 py-2.5 whitespace-nowrap"
+              }
+            >
+              {activeSub ? "Gerenciar assinatura" : "Ver planos"}
+            </Link>
+          </div>
+        </div>
+
+        <div className="relative grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-border">
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">RESULTADO NEXUS · 30D</div>
+            <div className="font-mono text-lg font-semibold text-success mt-1">
+              {assertividadePlataforma === null ? "—" : `${assertividadePlataforma}%`}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">SUA ASSERTIVIDADE</div>
+            <div className="font-mono text-lg font-semibold mt-1">
+              {minhaAssertividade === null ? "—" : `${minhaAssertividade}%`}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">GREENS / REDS</div>
+            <div className="font-mono text-lg font-semibold mt-1">
+              <span className="text-success">{greens}</span>
+              <span className="text-muted text-sm"> / </span>
+              <span className="text-danger">{reds}</span>
             </div>
           </div>
         </div>
-        <Link
-          href="/dashboard/planos"
-          className={activeSub ? "btn-outline text-xs px-4 py-2.5" : "btn-primary text-xs px-4 py-2.5"}
-        >
-          {activeSub ? "Gerenciar assinatura" : "Ver planos"}
-        </Link>
       </div>
 
-      <Link
-        href="/dashboard/eventos"
-        className="btn-outline self-start flex items-center gap-2 text-sm px-5 py-3"
-      >
-        Ir para Eventos
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </Link>
-
       <div>
-        <div className="text-sm font-bold text-text2 mb-3">
-          OPERAÇÕES EM ANDAMENTO ({operations.length})
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-bold text-text2">OPERAÇÕES EM ANDAMENTO ({operations.length})</div>
+          {operations.length > 0 && (
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-info">
+              <span className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
+              AO VIVO
+            </span>
+          )}
         </div>
         {operations.length > 0 ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2.5">
             {operations.map((op: any) => (
-              <div key={op.id} className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div
+                key={op.id}
+                className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-l-2 border-l-info"
+              >
                 <div className="min-w-0">
                   <div className="text-sm font-semibold flex items-center gap-1.5">
                     {op.signals.tipo === "bilhete" && (
@@ -138,7 +182,8 @@ export default async function VisaoGeralPage() {
                       R$ {((op.odd_obtida ?? op.signals.odd) * op.valor).toFixed(2)}
                     </div>
                   </div>
-                  <span className="bg-info/15 text-info text-[10px] font-bold px-3 py-1.5 rounded-md whitespace-nowrap">
+                  <span className="bg-info/15 text-info text-[10px] font-bold px-3 py-1.5 rounded-md whitespace-nowrap flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
                     EM ANDAMENTO
                   </span>
                 </div>
@@ -166,7 +211,7 @@ export default async function VisaoGeralPage() {
             <div>
               <div className="text-sm font-bold">Suas conquistas</div>
               <div className="text-xs text-text2 mt-0.5">
-                Sequência de greens, banca e performance — tudo em Gestão.
+                Sequência de greens, banca e resultado — tudo em Gestão.
               </div>
             </div>
           </div>
@@ -175,32 +220,6 @@ export default async function VisaoGeralPage() {
           </svg>
         </Link>
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">ASSERTIVIDADE NEXUS TIPS · 30 DIAS</div>
-          <div className="text-[11px] text-muted mt-1">Performance geral da plataforma.</div>
-          <div className="font-mono text-2xl font-semibold text-success mt-2.5">
-            {assertividadePlataforma === null ? "—" : `${assertividadePlataforma}%`}
-          </div>
-        </div>
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">SUA ASSERTIVIDADE</div>
-          <div className="text-[11px] text-muted mt-1">Baseado nas suas operações marcadas.</div>
-          <div className="font-mono text-2xl font-semibold mt-2.5">
-            {minhaAssertividade === null ? "—" : `${minhaAssertividade}%`}
-          </div>
-        </div>
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">GREENS / REDS</div>
-          <div className="text-[11px] text-muted mt-1">Operações já confirmadas.</div>
-          <div className="font-mono text-2xl font-semibold mt-2.5">
-            <span className="text-success">{greens}</span>
-            <span className="text-muted text-base"> / </span>
-            <span className="text-danger">{reds}</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
