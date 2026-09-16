@@ -30,6 +30,24 @@ function formatData(iso: string | null) {
   });
 }
 
+function initials(a: string, b: string) {
+  return `${(a || "?").charAt(0)}${(b || "?").charAt(0)}`.toUpperCase();
+}
+
+const ChevronIcon = ({ open }: { open: boolean }) => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    className={`transition-transform ${open ? "rotate-180" : ""}`}
+  >
+    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function HistoricoPage() {
   const supabase = createClient();
   const [subscribed, setSubscribed] = useState(false);
@@ -101,6 +119,12 @@ export default function HistoricoPage() {
     red: "bg-danger/10 border-danger text-danger",
     cancelada: "bg-muted/10 border-muted text-muted",
   };
+  const statusDot: Record<string, string> = {
+    andamento: "bg-info",
+    green: "bg-success",
+    red: "bg-danger",
+    cancelada: "bg-muted",
+  };
 
   const filtros: { id: Filtro; label: string }[] = [
     { id: "todos", label: "Todos" },
@@ -165,23 +189,27 @@ export default function HistoricoPage() {
     <div className="flex flex-col gap-5 max-w-4xl">
       {header}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">OPERAÇÕES ENCERRADAS</div>
-          <div className="font-mono text-2xl font-semibold mt-2.5">{settled}</div>
-        </div>
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">ASSERTIVIDADE</div>
-          <div className="font-mono text-2xl font-semibold mt-2.5">
-            {assertividade === null ? "—" : `${assertividade}%`}
+      {/* HERO: stats resumidos num card só, em vez de 3 cards soltos */}
+      <div className="card relative overflow-hidden p-6">
+        <div className="absolute -top-16 -right-10 w-52 h-52 bg-primary opacity-[0.08] blur-[70px] rounded-full pointer-events-none" />
+        <div className="relative grid grid-cols-3 gap-4">
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">OPERAÇÕES ENCERRADAS</div>
+            <div className="font-mono text-2xl font-semibold mt-1.5">{settled}</div>
           </div>
-        </div>
-        <div className="card p-6">
-          <div className="text-xs font-semibold text-text2">GREENS / REDS</div>
-          <div className="font-mono text-2xl font-semibold mt-2.5">
-            <span className="text-success">{greens}</span>
-            <span className="text-muted text-base"> / </span>
-            <span className="text-danger">{reds}</span>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">ASSERTIVIDADE</div>
+            <div className="font-mono text-2xl font-semibold mt-1.5">
+              {assertividade === null ? "—" : `${assertividade}%`}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-muted tracking-wide">GREENS / REDS</div>
+            <div className="font-mono text-2xl font-semibold mt-1.5">
+              <span className="text-success">{greens}</span>
+              <span className="text-muted text-base"> / </span>
+              <span className="text-danger">{reds}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -211,7 +239,7 @@ export default function HistoricoPage() {
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] font-bold text-text2 tracking-wide">
                   <th className="px-4 py-3">EVENTO</th>
@@ -230,26 +258,34 @@ export default function HistoricoPage() {
                   const expanded = expandedId === op.id;
                   return (
                     <Fragment key={op.id}>
-                      <tr className="border-b border-border last:border-0">
-                        <td className="px-4 py-3 max-w-[220px]">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {isBilhete && (
-                              <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex-none">
-                                BILHETE
-                              </span>
-                            )}
-                            <span className="font-semibold truncate">
-                              {isBilhete ? op.signals.time_b : `${op.signals.time_a} x ${op.signals.time_b}`}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-muted truncate">
-                            {isBilhete ? "Combinados" : op.signals.mercado}
+                      <tr className="border-b border-border last:border-0 hover:bg-elevated/30 transition-colors">
+                        <td className="px-4 py-3 max-w-[240px]">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center text-[10px] font-bold text-text2">
+                              {initials(op.signals.time_a, op.signals.time_b)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {isBilhete && (
+                                  <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex-none">
+                                    BILHETE
+                                  </span>
+                                )}
+                                <span className="font-semibold truncate">
+                                  {isBilhete ? op.signals.time_b : `${op.signals.time_a} x ${op.signals.time_b}`}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-muted truncate">
+                                {isBilhete ? "Combinados" : op.signals.mercado}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`text-[10px] font-bold tracking-wide rounded-full px-2.5 py-1 border whitespace-nowrap ${statusColor[op.status]}`}
+                            className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wide rounded-full px-2.5 py-1 border whitespace-nowrap ${statusColor[op.status]}`}
                           >
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusDot[op.status]}`} />
                             {statusLabel[op.status]}
                           </span>
                         </td>
@@ -272,9 +308,10 @@ export default function HistoricoPage() {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setExpandedId(expanded ? null : op.id)}
-                            className="text-[12px] font-semibold text-primary hover:underline whitespace-nowrap"
+                            className="flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline whitespace-nowrap"
                           >
                             {expanded ? "Ocultar" : "Ver detalhes"}
+                            <ChevronIcon open={expanded} />
                           </button>
                         </td>
                       </tr>
