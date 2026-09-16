@@ -10,6 +10,20 @@ import { temAcessoLiberado } from "@/lib/access";
 type SignalRow = Signal & { signal_legs: SignalLeg[] };
 type Filtro = "todos" | "vivo";
 
+const ChevronIcon = ({ open }: { open: boolean }) => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    className={`transition-transform ${open ? "rotate-180" : ""}`}
+  >
+    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function EventosPage() {
   const supabase = createClient();
   const [signals, setSignals] = useState<SignalRow[]>([]);
@@ -168,6 +182,12 @@ export default function EventosPage() {
     green: "bg-success/10 border-success text-success",
     red: "bg-danger/10 border-danger text-danger",
   };
+  // Cor de acento lateral por status — usada só no card, sem mexer nos mapas acima.
+  const statusAccent: Record<string, string> = {
+    no_ar: "border-l-info",
+    green: "border-l-success",
+    red: "border-l-danger",
+  };
 
   const filtros: { id: Filtro; label: string }[] = [
     { id: "todos", label: "Todos" },
@@ -180,6 +200,7 @@ export default function EventosPage() {
     if (filtro === "vivo") return estaAoVivo(s);
     return true;
   });
+  const vivoCount = signals.filter(estaAoVivo).length;
 
   const header = (
     <div>
@@ -241,18 +262,29 @@ export default function EventosPage() {
     <div className="flex flex-col gap-5 max-w-3xl">
       {header}
 
-      <div className="inline-flex bg-surface border border-border rounded-[10px] p-1 w-fit">
-        {filtros.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setFiltro(f.id)}
-            className={`px-4 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors ${
-              filtro === f.id ? "bg-primary text-white" : "text-text2 hover:text-text"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="inline-flex bg-surface border border-border rounded-[10px] p-1 w-fit">
+          {filtros.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFiltro(f.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors ${
+                filtro === f.id ? "bg-primary text-white" : "text-text2 hover:text-text"
+              }`}
+            >
+              {f.label}
+              {f.id === "vivo" && vivoCount > 0 && (
+                <span
+                  className={`text-[10px] font-bold rounded-full px-1.5 ${
+                    filtro === f.id ? "bg-white/20" : "bg-danger/15 text-danger"
+                  }`}
+                >
+                  {vivoCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -274,11 +306,14 @@ export default function EventosPage() {
             const formAberto = openFormId === signal.id;
 
             return (
-              <div key={signal.id} className="card p-5">
-                <div className="flex items-start justify-between">
+              <div
+                key={signal.id}
+                className={`card p-5 border-l-2 ${statusAccent[signal.status] || "border-l-border"}`}
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {estaAoVivo(signal) && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {estaAoVivo(signal) && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-none" />}
                       {isBilhete && (
                         <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                           BILHETE
@@ -325,22 +360,30 @@ export default function EventosPage() {
                       {estaAoVivo(signal) ? "AO VIVO · " : ""}
                       {statusLabel[signal.status]}
                     </span>
-                    <span className="font-mono text-lg font-semibold">{signal.odd}</span>
+                    <span className="bg-elevated border border-border rounded-md px-2.5 py-1 font-mono text-base font-semibold">
+                      {signal.odd}
+                    </span>
                   </div>
                 </div>
 
                 {sugestao && (
-                  <div className="mt-3 text-[11px] text-info bg-info/10 border border-info/30 rounded-lg px-3 py-2">
-                    <span className="font-bold">Sugestão de entrada:</span> {sugestao.texto}
+                  <div className="mt-3 flex items-start gap-2 text-[11px] text-info bg-info/10 border border-info/30 rounded-lg px-3 py-2">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" strokeWidth="2" className="flex-none mt-0.5">
+                      <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" strokeLinejoin="round" />
+                    </svg>
+                    <span>
+                      <span className="font-bold">Sugestão de entrada:</span> {sugestao.texto}
+                    </span>
                   </div>
                 )}
 
                 {signal.rationale && (
                   <button
                     onClick={() => setExpandedId(expanded ? null : signal.id)}
-                    className="text-[12px] font-semibold text-text2 hover:text-text mt-3"
+                    className="flex items-center gap-1 text-[12px] font-semibold text-text2 hover:text-text mt-3"
                   >
                     {expanded ? "Ocultar análise" : "Ver análise"}
+                    <ChevronIcon open={expanded} />
                   </button>
                 )}
 
@@ -418,19 +461,22 @@ export default function EventosPage() {
                       Apostar na {signal.casa_nome || "casa recomendada"}
                     </Link>
                   )}
-                  {!formAberto && (
-                    <button
-                      onClick={() => abrirFormulario(signal)}
-                      disabled={alreadyMarked}
-                      className="btn-primary text-xs px-4 py-2 disabled:opacity-40"
-                    >
-                      {alreadyMarked
-                        ? "Operação marcada ✓"
-                        : isBilhete
-                        ? "Marcar bilhete"
-                        : "Marcar operação"}
-                    </button>
-                  )}
+                  {!formAberto &&
+                    (alreadyMarked ? (
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-lg px-3 py-2">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="2.5">
+                          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Operação marcada
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => abrirFormulario(signal)}
+                        className="btn-primary text-xs px-4 py-2"
+                      >
+                        {isBilhete ? "Marcar bilhete" : "Marcar operação"}
+                      </button>
+                    ))}
                 </div>
               </div>
             );
