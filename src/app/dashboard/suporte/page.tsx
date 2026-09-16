@@ -91,6 +91,13 @@ const FAQ: { id: string; categoria: Categoria; pergunta: string; resposta: strin
   },
 ];
 
+const CATEGORIA_COLOR: Record<Categoria, string> = {
+  Acesso: "text-info bg-info/10 border-info/30",
+  Operações: "text-primary bg-primary/10 border-primary/30",
+  Financeiro: "text-success bg-success/10 border-success/30",
+  Segurança: "text-warning bg-warning/10 border-warning/30",
+};
+
 const HeadsetIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
     <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 20l1-5.4A8.5 8.5 0 1 1 21 11.5z" />
@@ -108,6 +115,15 @@ const TicketIcon = () => (
     <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z" />
   </svg>
 );
+
+function formatHora(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function SuportePage() {
   const supabase = createClient();
@@ -356,7 +372,14 @@ export default function SuportePage() {
                         onClick={() => setAberta(aberto ? null : f.id)}
                         className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left"
                       >
-                        <span className="text-sm font-semibold">{f.pergunta}</span>
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className={`hidden sm:inline-block flex-none text-[9px] font-bold tracking-wide rounded-full px-2 py-0.5 border ${CATEGORIA_COLOR[f.categoria]}`}
+                          >
+                            {f.categoria.toUpperCase()}
+                          </span>
+                          <span className="text-sm font-semibold truncate">{f.pergunta}</span>
+                        </span>
                         <svg
                           width="14"
                           height="14"
@@ -423,17 +446,20 @@ export default function SuportePage() {
                       key={t.id}
                       onClick={() => setSelected(t.id)}
                       className={`card p-3.5 text-left transition-colors ${
-                        selected === t.id ? "border-primary" : ""
+                        selected === t.id ? "border-primary" : "hover:border-border"
                       }`}
                     >
                       <div className="text-sm font-semibold truncate">{t.assunto}</div>
-                      <span
-                        className={`inline-block mt-1.5 text-[10px] font-bold tracking-wide rounded-full px-2 py-0.5 border ${
-                          statusColor[t.status]
-                        }`}
-                      >
-                        {t.status.toUpperCase()}
-                      </span>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span
+                          className={`inline-block text-[10px] font-bold tracking-wide rounded-full px-2 py-0.5 border ${
+                            statusColor[t.status]
+                          }`}
+                        >
+                          {t.status.toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-muted">{formatHora(t.created_at)}</span>
+                      </div>
                     </button>
                   ))
                 )}
@@ -457,8 +483,9 @@ export default function SuportePage() {
                             : "self-start bg-elevated border border-border"
                         }`}
                       >
-                        <div className="text-[10px] font-bold text-muted mb-1">
-                          {m.sender === "user" ? "VOCÊ" : "NEXUS TIPS"}
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-muted mb-1">
+                          <span>{m.sender === "user" ? "VOCÊ" : "NEXUS TIPS"}</span>
+                          <span className="font-normal">· {formatHora(m.created_at)}</span>
                         </div>
                         {m.text}
                       </div>
@@ -488,41 +515,53 @@ export default function SuportePage() {
       </div>
 
       <div className="w-full md:w-72 md:flex-none flex flex-col gap-4">
-        <div className="card p-4 flex flex-col gap-3">
-          <div className="text-xs font-bold text-text2">CANAIS OFICIAIS</div>
+        <div className="card relative overflow-hidden p-4 flex flex-col gap-3">
+          <div className="absolute -top-10 -right-8 w-28 h-28 bg-success opacity-[0.08] blur-[50px] rounded-full pointer-events-none" />
+          <div className="relative flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center text-success">
+              <WhatsappIcon />
+            </div>
+            <div className="text-xs font-bold text-text2">CANAIS OFICIAIS</div>
+          </div>
           {whatsappLink ? (
             <Link
               href={whatsappLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 text-xs font-semibold py-2.5 rounded-lg bg-success/15 border border-success/40 text-success hover:bg-success/25 transition-colors"
+              className="relative flex items-center justify-center gap-2 text-xs font-semibold py-2.5 rounded-lg bg-success/15 border border-success/40 text-success hover:bg-success/25 transition-colors"
             >
               <WhatsappIcon />
               Falar no WhatsApp
             </Link>
           ) : (
-            <p className="text-[11px] text-muted">
+            <p className="relative text-[11px] text-muted">
               Nenhum canal externo configurado no momento — use os chamados abaixo.
             </p>
           )}
         </div>
 
-        <div className="card p-4 flex flex-col gap-3">
-          <div className="text-xs font-bold text-text2">PRECISA FALAR COM O SUPORTE?</div>
-          <p className="text-[11px] text-muted leading-relaxed">
+        <div className="card relative overflow-hidden p-4 flex flex-col gap-3">
+          <div className="absolute -bottom-12 -left-8 w-28 h-28 bg-primary opacity-[0.08] blur-[50px] rounded-full pointer-events-none" />
+          <div className="relative flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center">
+              <TicketIcon />
+            </div>
+            <div className="text-xs font-bold text-text2">PRECISA FALAR COM O SUPORTE?</div>
+          </div>
+          <p className="relative text-[11px] text-muted leading-relaxed">
             Não achou sua resposta nas perguntas frequentes? Abra um chamado e a equipe
             responde por aqui mesmo.
           </p>
           <button
             onClick={() => abrirTickets(true)}
-            className="btn-primary text-xs py-2.5 flex items-center justify-center gap-2"
+            className="relative btn-primary text-xs py-2.5 flex items-center justify-center gap-2"
           >
             <TicketIcon />
             Abrir ticket
           </button>
           <button
             onClick={() => abrirTickets(false)}
-            className="btn-outline text-xs py-2.5"
+            className="relative btn-outline text-xs py-2.5"
           >
             Acompanhar tickets{tickets.length > 0 ? ` (${tickets.length})` : ""}
           </button>
