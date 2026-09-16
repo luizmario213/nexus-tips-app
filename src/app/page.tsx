@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PLANOS } from "@/lib/types";
 import { Logo } from "@/components/Logo";
@@ -154,17 +154,42 @@ function AssertividadeGaugeMarketing({ value }: { value: number }) {
 export default function LandingPage() {
   const [demoStage, setDemoStage] = useState<"idle" | "loading" | "result">("idle");
   const [demoIndex, setDemoIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(0);
   const demo = DEMO_SIGNALS[demoIndex];
 
+  // O "loading" não é mais um spinner genérico — é uma esteira de etapas que aparece uma
+  // de cada vez, simulando o motor de verdade: procura o jogo, acha a oportunidade,
+  // cruza dados das equipes, filtra e só then entrega a análise. Reforça na demo o que a
+  // Nexus faz de fato antes de publicar um sinal.
+  const pipeline = [
+    { label: "Buscando jogos do dia" },
+    { label: "Oportunidade encontrada", detail: `${demo.timeA} x ${demo.timeB}` },
+    { label: "Analisando dados das equipes" },
+    { label: "Cruzando contexto e histórico" },
+    { label: "Filtrando por valor esperado" },
+    { label: "Sinal aprovado", detail: demo.estrategia },
+  ];
+
+  useEffect(() => {
+    if (demoStage !== "loading") return;
+    if (stepIndex >= pipeline.length - 1) {
+      const t = setTimeout(() => setDemoStage("result"), 550);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => setStepIndex((i) => i + 1), 380);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoStage, stepIndex]);
+
   function startDemo() {
+    setStepIndex(0);
     setDemoStage("loading");
-    setTimeout(() => setDemoStage("result"), 1400);
   }
 
   function nextDemo() {
-    setDemoStage("loading");
     setDemoIndex((i) => (i + 1) % DEMO_SIGNALS.length);
-    setTimeout(() => setDemoStage("result"), 1400);
+    setStepIndex(0);
+    setDemoStage("loading");
   }
 
   return (
@@ -271,11 +296,52 @@ export default function LandingPage() {
               )}
 
               {demoStage === "loading" && (
-                <div className="mt-5 flex items-center justify-center gap-2.5 bg-elevated rounded-lg py-3.5 animate-pulse">
-                  <div className="w-[18px] h-[18px] rounded-full border-[2.5px] border-primary/25 border-t-primary animate-spin" />
-                  <span className="text-[13px] font-semibold text-text2">
-                    Cruzando dados do confronto…
-                  </span>
+                <div className="mt-5 bg-elevated rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="text-[10px] font-bold tracking-widest text-primary">
+                      MOTOR NEXUS ANALISANDO
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    {pipeline.map((step, i) => {
+                      const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
+                      return (
+                        <div
+                          key={step.label}
+                          className={`flex items-center gap-2.5 transition-opacity duration-300 ${
+                            state === "pending" ? "opacity-30" : "opacity-100"
+                          }`}
+                        >
+                          <span className="w-4 h-4 flex-none flex items-center justify-center">
+                            {state === "done" && (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-success">
+                                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                            {state === "active" && (
+                              <span className="w-[13px] h-[13px] rounded-full border-2 border-primary/25 border-t-primary animate-spin" />
+                            )}
+                            {state === "pending" && <span className="w-1.5 h-1.5 rounded-full bg-muted" />}
+                          </span>
+                          <span
+                            className={`text-[12.5px] ${
+                              state === "active"
+                                ? "font-semibold text-text"
+                                : state === "done"
+                                ? "text-text2"
+                                : "text-muted"
+                            }`}
+                          >
+                            {step.label}
+                            {step.detail && state !== "pending" && (
+                              <span className="text-muted"> — {step.detail}</span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
