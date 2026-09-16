@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { AccountMenu } from "@/components/AccountMenu";
 import { Logo } from "@/components/Logo";
 
 // Casca do dashboard: no desktop (md+) é o layout de sempre, sidebar fixa ao lado do
@@ -10,12 +11,14 @@ import { Logo } from "@/components/Logo";
 // um app de verdade se comporta, em vez do layout de PC espremido na tela do celular.
 export function DashboardShell({
   name,
+  email,
   subscribed,
   casaNome,
   casaLink,
   children,
 }: {
   name: string;
+  email: string;
   subscribed: boolean;
   casaNome?: string | null;
   casaLink?: string | null;
@@ -55,26 +58,12 @@ export function DashboardShell({
             </svg>
           </button>
           <Logo size={22} />
-          <span
-            className={`rounded-full w-2.5 h-2.5 flex-none ${
-              subscribed ? "bg-success" : "bg-muted"
-            }`}
-            aria-label={subscribed ? "Assinatura ativa" : "Conta gratuita"}
-          />
+          <AccountMenu name={name} email={email} subscribed={subscribed} compact />
         </div>
 
         {/* Header de desktop — some no mobile (hidden, md:flex). */}
         <div className="h-16 flex-none hidden md:flex items-center justify-end px-8 border-b border-border bg-gradient-to-r from-transparent to-bg2/40">
-          <div
-            className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide border ${
-              subscribed
-                ? "bg-success/10 border-success text-success"
-                : "bg-elevated border-border text-text2"
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${subscribed ? "bg-success animate-pulse" : "bg-muted"}`} />
-            {subscribed ? "ASSINATURA ATIVA" : "CONTA GRATUITA"}
-          </div>
+          <AccountMenu name={name} email={email} subscribed={subscribed} />
         </div>
 
         <div className="flex-1 overflow-auto p-4 md:p-8 min-w-0">{children}</div>
