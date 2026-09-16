@@ -43,6 +43,7 @@ export default async function DashboardLayout({
       <OnboardingTutorial />
       <DashboardShell
         name={profile?.name || user.email || "Você"}
+        email={profile?.email || user.email || ""}
         subscribed={temAcessoLiberado(profile?.role, !!activeSub)}
         casaNome={settings?.casa_nome || null}
         casaLink={settings?.casa_link || null}
