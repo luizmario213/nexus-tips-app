@@ -35,7 +35,7 @@ const STEPS: Step[] = [
   {
     kind: "banca",
     title: "Qual sua banca inicial?",
-    desc: "Isso ajuda a Gestão a calcular sua performance desde o primeiro dia.",
+    desc: "Isso ajuda a Gestão a calcular seu resultado desde o primeiro dia.",
   },
   {
     kind: "generic",
