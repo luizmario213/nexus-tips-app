@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Signal, SignalLeg, SignalTipo, SugestaoTipo } from "@/lib/types";
 
 type SignalRow = Signal & { signal_legs: SignalLeg[] };
+type StatusFiltro = "todos" | "no_ar" | "live" | "green" | "red" | "cancelado";
 
 const ESTRATEGIAS = ["Valor esperado", "Overreaction de mercado", "Modelo estatístico", "Live trading"];
 
@@ -13,6 +14,22 @@ const SUGESTAO_LABELS: Record<SugestaoTipo, string> = {
   unidades: "Unidades",
   valor: "Valor fixo (R$)",
 };
+
+const STATUS_DOT: Record<string, string> = {
+  green: "bg-success",
+  red: "bg-danger",
+  no_ar: "bg-info",
+  cancelado: "bg-muted",
+};
+
+const FILTROS: { key: StatusFiltro; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "no_ar", label: "No ar" },
+  { key: "live", label: "Ao vivo" },
+  { key: "green", label: "Green" },
+  { key: "red", label: "Red" },
+  { key: "cancelado", label: "Cancelado" },
+];
 
 interface LegForm {
   competicao: string;
@@ -32,6 +49,7 @@ export default function AdminSinaisPage() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filtroStatus, setFiltroStatus] = useState<StatusFiltro>("todos");
 
   const [tipo, setTipo] = useState<SignalTipo>("simples");
   const [form, setForm] = useState({
@@ -272,12 +290,48 @@ export default function AdminSinaisPage() {
     setSignals((prev) => prev.filter((s) => s.id !== id));
   }
 
+  const totalNoAr = signals.filter((s) => s.status === "no_ar").length;
+  const totalAoVivo = signals.filter((s) => s.live).length;
+  const totalGreens = signals.filter((s) => s.status === "green").length;
+  const totalReds = signals.filter((s) => s.status === "red").length;
+
+  const signalsFiltrados = signals.filter((s) => {
+    if (filtroStatus === "todos") return true;
+    if (filtroStatus === "live") return s.live;
+    return s.status === filtroStatus;
+  });
+
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
       <div>
         <span className="text-xs font-bold tracking-wide text-primary">ADMIN</span>
         <h1 className="text-2xl font-bold mt-2 mb-1">Sinais</h1>
         <p className="text-text2 text-sm">Publicar aqui reflete na hora em Eventos, para todos os usuários.</p>
+      </div>
+
+      <div className="card p-6">
+        <span className="font-mono text-[10.5px] text-muted tracking-wider">SINAIS PUBLICADOS</span>
+        <div className="flex flex-wrap items-end gap-x-0 gap-y-4 mt-3">
+          <div className="pr-6">
+            <div className="font-mono text-[48px] leading-none font-bold tracking-tight">{signals.length}</div>
+          </div>
+          <div className="border-l border-border pl-6 pr-6">
+            <div className="font-mono text-xl font-semibold text-info">{totalNoAr}</div>
+            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">NO AR</div>
+          </div>
+          <div className="border-l border-border pl-6 pr-6">
+            <div className="font-mono text-xl font-semibold text-warning">{totalAoVivo}</div>
+            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">AO VIVO</div>
+          </div>
+          <div className="border-l border-border pl-6 pr-6">
+            <div className="font-mono text-xl font-semibold text-success">{totalGreens}</div>
+            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">GREEN</div>
+          </div>
+          <div className="border-l border-border pl-6">
+            <div className="font-mono text-xl font-semibold text-danger">{totalReds}</div>
+            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">RED</div>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={publicar} className="card p-6 flex flex-col gap-3.5">
@@ -306,8 +360,8 @@ export default function AdminSinaisPage() {
         </div>
 
         <div className="border border-border rounded-lg p-3.5 flex flex-col gap-3">
-          <div className="text-[10px] font-bold text-muted tracking-wide">
-            DIRECIONAMENTO E SUGESTÃO DE ENTRADA
+          <div className="text-[10.5px] font-bold text-muted tracking-wider uppercase">
+            Direcionamento e sugestão de entrada
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
@@ -564,105 +618,142 @@ export default function AdminSinaisPage() {
       </form>
 
       <div>
-        <div className="text-sm font-bold text-text2 mb-3">SINAIS PUBLICADOS ({signals.length})</div>
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <div className="text-sm font-bold text-text2">
+            HISTÓRICO ({signalsFiltrados.length}
+            {filtroStatus !== "todos" ? ` de ${signals.length}` : ""})
+          </div>
+          <div className="inline-flex bg-surface border border-border rounded-[10px] p-1 overflow-x-auto max-w-full">
+            {FILTROS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFiltroStatus(f.key)}
+                className={`px-3 py-1.5 rounded-[7px] text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  filtroStatus === f.key ? "bg-primary text-white" : "text-text2 hover:text-text"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {loading ? (
           <div className="card p-7 text-center text-sm text-text2">Carregando…</div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {signals.map((s) => {
+          <div className="card divide-y divide-border overflow-hidden">
+            {signalsFiltrados.map((s) => {
               const expanded = expandedId === s.id;
               return (
-                <div key={s.id} className="card p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
+                <div key={s.id} className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`w-2 h-2 rounded-full flex-none ${STATUS_DOT[s.status] || "bg-muted"}`}
+                      title={s.status || "sem status"}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {s.tipo === "bilhete" && (
-                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex-none">
                             BILHETE
                           </span>
                         )}
-                        <div className="text-[10px] text-muted font-semibold">{s.competicao}</div>
+                        {s.live && (
+                          <span className="text-[9px] font-bold text-warning bg-warning/10 px-1.5 py-0.5 rounded flex-none">
+                            AO VIVO
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted font-semibold truncate">{s.competicao}</span>
                       </div>
-                      <div className="text-sm font-semibold truncate">
+                      <div className="text-sm font-semibold truncate mt-0.5">
                         {s.tipo === "bilhete"
-                          ? `${s.signal_legs?.length || 0} jogos combinados · ODD ${s.odd}`
-                          : `${s.time_a} x ${s.time_b} · ${s.mercado} · ODD ${s.odd}`}
+                          ? `${s.signal_legs?.length || 0} jogos combinados`
+                          : `${s.time_a} x ${s.time_b}`}
+                        <span className="text-text2 font-normal">
+                          {" "}
+                          · {s.tipo === "bilhete" ? "" : `${s.mercado} · `}ODD {s.odd}
+                        </span>
                       </div>
-                      {s.horario_jogo && (
-                        <div className="text-[11px] text-muted mt-0.5">
-                          Jogo às{" "}
-                          {new Date(s.horario_jogo).toLocaleString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      )}
-                      {s.tipo === "bilhete" && (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedId(expanded ? null : s.id)}
-                          className="text-[11px] font-semibold text-text2 hover:text-text mt-1"
-                        >
-                          {expanded ? "Ocultar jogos" : "Ver jogos"}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-3 text-[11px] text-muted mt-0.5 font-mono flex-wrap">
+                        {s.horario_jogo && (
+                          <span>
+                            Jogo às{" "}
+                            {new Date(s.horario_jogo).toLocaleString("pt-BR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        )}
+                        {s.tipo === "bilhete" && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(expanded ? null : s.id)}
+                            className="font-sans font-semibold text-text2 hover:text-text"
+                          >
+                            {expanded ? "Ocultar jogos" : "Ver jogos"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex-none flex items-center gap-2">
-                      <button
-                        onClick={() => atualizarStatus(s.id, "green")}
-                        disabled={updating === s.id}
-                        className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
-                          s.status === "green"
-                            ? "bg-success text-bg border-success"
-                            : "border-success text-success"
-                        }`}
-                      >
-                        GREEN
-                      </button>
-                      <button
-                        onClick={() => atualizarStatus(s.id, "red")}
-                        disabled={updating === s.id}
-                        className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
-                          s.status === "red" ? "bg-danger text-bg border-danger" : "border-danger text-danger"
-                        }`}
-                      >
-                        RED
-                      </button>
-                      <button
-                        onClick={() => atualizarStatus(s.id, "no_ar")}
-                        disabled={updating === s.id}
-                        className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
-                          s.status === "no_ar" ? "bg-info text-bg border-info" : "border-info text-info"
-                        }`}
-                      >
-                        NO AR
-                      </button>
-                      <button
-                        onClick={() => atualizarStatus(s.id, "cancelado")}
-                        disabled={updating === s.id}
-                        className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
-                          s.status === "cancelado"
-                            ? "bg-muted text-bg border-muted"
-                            : "border-muted text-muted"
-                        }`}
-                      >
-                        CANCELADO
-                      </button>
+                      <div className="inline-flex bg-surface border border-border rounded-[10px] p-1">
+                        <button
+                          onClick={() => atualizarStatus(s.id, "no_ar")}
+                          disabled={updating === s.id}
+                          title="Marcar como no ar"
+                          className={`px-2 py-1.5 rounded-[7px] text-[10px] font-bold transition-colors ${
+                            s.status === "no_ar" ? "bg-info text-bg" : "text-text2 hover:text-text"
+                          }`}
+                        >
+                          AR
+                        </button>
+                        <button
+                          onClick={() => atualizarStatus(s.id, "green")}
+                          disabled={updating === s.id}
+                          title="Marcar como green"
+                          className={`px-2 py-1.5 rounded-[7px] text-[10px] font-bold transition-colors ${
+                            s.status === "green" ? "bg-success text-bg" : "text-text2 hover:text-text"
+                          }`}
+                        >
+                          G
+                        </button>
+                        <button
+                          onClick={() => atualizarStatus(s.id, "red")}
+                          disabled={updating === s.id}
+                          title="Marcar como red"
+                          className={`px-2 py-1.5 rounded-[7px] text-[10px] font-bold transition-colors ${
+                            s.status === "red" ? "bg-danger text-bg" : "text-text2 hover:text-text"
+                          }`}
+                        >
+                          R
+                        </button>
+                        <button
+                          onClick={() => atualizarStatus(s.id, "cancelado")}
+                          disabled={updating === s.id}
+                          title="Marcar como cancelado"
+                          className={`px-2 py-1.5 rounded-[7px] text-[10px] font-bold transition-colors ${
+                            s.status === "cancelado" ? "bg-muted text-bg" : "text-text2 hover:text-text"
+                          }`}
+                        >
+                          C
+                        </button>
+                      </div>
                       <button
                         onClick={() => removerSinal(s.id)}
                         disabled={removing === s.id}
                         title="Remove o sinal por completo (não fica no histórico de ninguém)"
-                        className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-danger text-danger disabled:opacity-40"
+                        className="text-muted hover:text-danger text-[10px] font-bold px-2 py-1.5 rounded-lg disabled:opacity-40 flex-none"
                       >
-                        {removing === s.id ? "REMOVENDO…" : "REMOVER"}
+                        {removing === s.id ? "…" : "✕"}
                       </button>
                     </div>
                   </div>
 
                   {expanded && s.tipo === "bilhete" && (
-                    <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2">
+                    <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2 pl-5">
                       {(s.signal_legs || [])
                         .slice()
                         .sort((a, b) => a.ordem - b.ordem)
@@ -681,8 +772,10 @@ export default function AdminSinaisPage() {
                 </div>
               );
             })}
-            {signals.length === 0 && (
-              <div className="card p-7 text-center text-sm text-text2">Nenhum sinal publicado ainda.</div>
+            {signalsFiltrados.length === 0 && (
+              <div className="p-7 text-center text-sm text-text2">
+                {signals.length === 0 ? "Nenhum sinal publicado ainda." : "Nenhum sinal nesse filtro."}
+              </div>
             )}
           </div>
         )}
