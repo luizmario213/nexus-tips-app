@@ -37,6 +37,12 @@ const ICONS = {
       <path d="M4 19V10M10 19V5M16 19V13M22 19V8" strokeLinecap="round" />
     </svg>
   ),
+  shield: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z" strokeLinejoin="round" />
+      <path d="M8.5 12l2.3 2.3L16 9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   card: (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="2" y="5" width="20" height="14" rx="2.5" />
@@ -67,8 +73,8 @@ function navGroups(subscribed: boolean) {
       ],
     },
     {
-      // Histórico e Performance ficam de fora do "subscribed ?" porque não dependem de
-      // assinatura: Performance é a performance da PLATAFORMA (todo sinal já publicado),
+      // Histórico e Resultados ficam de fora do "subscribed ?" porque não dependem de
+      // assinatura: Resultados é o track record da PLATAFORMA (todo sinal já publicado),
       // não das operações do usuário — serve inclusive pra convencer quem ainda não
       // assinou. Histórico, por outro lado, é pessoal (as operações que o usuário já
       // marcou), então esse sim é travado — ver a página em si.
@@ -77,11 +83,11 @@ function navGroups(subscribed: boolean) {
         ? [
             { href: "/dashboard/gestao", label: "Gestão", icon: ICONS.wallet, locked: false },
             { href: "/dashboard/historico", label: "Histórico", icon: ICONS.clock, locked: false },
-            { href: "/dashboard/performance", label: "Performance", icon: ICONS.bars, locked: false },
+            { href: "/dashboard/performance", label: "Resultados", icon: ICONS.shield, locked: false },
           ]
         : [
             { href: "/dashboard/historico", label: "Histórico", icon: ICONS.clock, locked: true },
-            { href: "/dashboard/performance", label: "Performance", icon: ICONS.bars, locked: false },
+            { href: "/dashboard/performance", label: "Resultados", icon: ICONS.shield, locked: false },
           ],
     },
     {
