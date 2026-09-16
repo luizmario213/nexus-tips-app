@@ -15,6 +15,13 @@ const DEMO_SIGNALS = [
     estrategia: "Momentum ofensivo",
     rationale:
       "Arsenal chega de três jogos seguidos em casa marcando ao menos 2 gols, e o Chelsea sofreu gols em 6 dos últimos 7 confrontos fora. O padrão ofensivo recente dos dois lados sustenta a expectativa de um jogo aberto.",
+    agentFindings: {
+      jogos: "9 jogos monitorados na Premier League hoje",
+      stats: "Arsenal marca 2+ gols há 3 jogos seguidos em casa",
+      odds: "Odd subiu de 1,65 para 1,72 nas últimas 3h",
+      historico: "Chelsea sofreu gols em 6 dos últimos 7 jogos fora",
+      oportunidade: "Valor esperado +9,2% sobre a odd de mercado",
+    },
   },
   {
     comp: "LA LIGA · HOJE, 18:30",
@@ -25,6 +32,13 @@ const DEMO_SIGNALS = [
     estrategia: "Consistência defensiva instável",
     rationale:
       "O Atlético não mantém o gol invicto há 5 rodadas visitando times do G6, enquanto o Barcelona não deixa de balançar a rede há 11 jogos seguidos como mandante. O histórico recente favorece um confronto com gols dos dois lados.",
+    agentFindings: {
+      jogos: "6 jogos monitorados na La Liga hoje",
+      stats: "Barcelona não deixa de marcar há 11 jogos em casa",
+      odds: "Mercado \"ambas marcam\" oscilando entre 1,80 e 1,90",
+      historico: "Atlético sofreu gols em 5 dos últimos 6 jogos fora do G6",
+      oportunidade: "Valor esperado +6,8% sobre a odd de mercado",
+    },
   },
   {
     comp: "BRASILEIRÃO · AMANHÃ, 20:00",
@@ -35,6 +49,13 @@ const DEMO_SIGNALS = [
     estrategia: "Vantagem de mando",
     rationale:
       "O Corinthians não perde como mandante neste clássico há 4 edições, e o São Paulo tem historicamente um retrospecto mais equilibrado fora de casa nesse confronto direto. O contexto de mando pesa a favor de um resultado sem derrota para o time da casa.",
+    agentFindings: {
+      jogos: "4 jogos monitorados no Brasileirão amanhã",
+      stats: "Corinthians invicto como mandante neste clássico há 4 edições",
+      odds: "Dupla chance 1X abrindo acima da média histórica do confronto",
+      historico: "São Paulo tem retrospecto equilibrado fora nesse confronto direto",
+      oportunidade: "Valor esperado +5,4% sobre a odd de mercado",
+    },
   },
 ];
 
@@ -78,16 +99,18 @@ const ETAPAS = [
 // satélite, cada um puxando uma fonte de dado diferente. As posições são coordenadas fixas
 // num círculo de raio ENGINE_RADIUS ao redor de ENGINE_CENTER — geometria de um pentágono
 // regular, calculada uma vez e reaproveitada tanto pros nós quanto pras linhas de conexão.
-const ENGINE_CENTER = { x: 150, y: 116 };
-const ENGINE_RADIUS = 80;
+const ENGINE_CENTER = { x: 150, y: 126 };
+const ENGINE_RADIUS = 82;
 
 const AGENTES = [
-  { id: "jogos", label: "Jogos do dia", angle: -90 },
-  { id: "stats", label: "Estatísticas", angle: -18 },
-  { id: "odds", label: "Odds do mercado", angle: 54 },
-  { id: "historico", label: "Histórico", angle: 126 },
-  { id: "oportunidade", label: "Oportunidades", angle: 198 },
+  { id: "jogos", label: "Jogos do dia", verbo: "Buscando jogos do dia", angle: -90 },
+  { id: "stats", label: "Estatísticas", verbo: "Cruzando estatísticas das equipes", angle: -18 },
+  { id: "odds", label: "Odds do mercado", verbo: "Puxando odds do mercado", angle: 54 },
+  { id: "historico", label: "Histórico", verbo: "Consultando histórico de confrontos", angle: 126 },
+  { id: "oportunidade", label: "Oportunidades", verbo: "Mapeando oportunidades de valor", angle: 198 },
 ] as const;
+
+type AgentId = (typeof AGENTES)[number]["id"];
 
 function agentPos(angle: number) {
   const rad = (angle * Math.PI) / 180;
@@ -97,16 +120,10 @@ function agentPos(angle: number) {
   };
 }
 
-// Uma legenda por etapa — sincronizada com o índice que acende cada agente (as 5 primeiras)
-// mais uma etapa final de correlação no núcleo, antes de revelar a análise.
-const CAPTIONS = [
-  "Varrendo os jogos do dia…",
-  "Cruzando estatísticas das equipes…",
-  "Puxando as odds do mercado…",
-  "Consultando histórico de confrontos…",
-  "Mapeando oportunidades de valor…",
-  "Correlacionando tudo — sinal aprovado…",
-];
+// Duração (ms) de cada etapa — uma por agente (0..4) mais a etapa final de correlação no
+// núcleo (5). Variada de propósito, pra não parecer um metrônomo — cada "análise" leva um
+// tempo diferente, do jeito que um processo de verdade levaria.
+const STEP_DURATIONS = [950, 800, 1050, 900, 1150, 1000];
 
 const AGENT_ICONS: Record<(typeof AGENTES)[number]["id"], React.ReactNode> = {
   jogos: (
@@ -158,14 +175,53 @@ const ChipIcon = () => (
 // linha de cada um "se desenhando" até o centro conforme ele entra em `stepIndex`. Cada
 // linha usa stroke-dasharray igual ao próprio comprimento e anima o dashoffset até 0 —
 // truque clássico de "desenhar" uma linha em CSS sem depender de nenhuma lib externa.
-function CorrelationEngine({ stepIndex }: { stepIndex: number }) {
+//
+// Interativo: dá pra clicar em qualquer agente (mesmo antes ou depois da vez dele) pra
+// "fixar" o que ele encontrou na legenda de baixo — some sozinho depois de alguns
+// segundos e volta a acompanhar a etapa que está rolando ao vivo.
+function CorrelationEngine({
+  stepIndex,
+  findings,
+  pinnedId,
+  onSelectAgent,
+}: {
+  stepIndex: number;
+  findings: Record<AgentId, string>;
+  pinnedId: AgentId | null;
+  onSelectAgent: (id: AgentId) => void;
+}) {
+  const totalSteps = AGENTES.length + 1;
+  const agentState = (i: number) => (i < stepIndex ? "done" : i === stepIndex ? "active" : "pending");
+
+  const pinnedIndex = pinnedId ? AGENTES.findIndex((a) => a.id === pinnedId) : -1;
+  const pinnedState = pinnedIndex >= 0 ? agentState(pinnedIndex) : null;
+
+  let captionTitle: string;
+  let captionDetail: string;
+  if (pinnedId && pinnedIndex >= 0) {
+    const agent = AGENTES[pinnedIndex];
+    if (pinnedState === "pending") {
+      captionTitle = agent.label;
+      captionDetail = "ainda não entrou na análise — aguarde a vez dele.";
+    } else {
+      captionTitle = agent.label;
+      captionDetail = findings[agent.id];
+    }
+  } else if (stepIndex < AGENTES.length) {
+    captionTitle = AGENTES[stepIndex].label;
+    captionDetail = findings[AGENTES[stepIndex].id];
+  } else {
+    captionTitle = "Correlação concluída";
+    captionDetail = "todos os agentes concordam — sinal aprovado.";
+  }
+
   return (
     <div className="bg-elevated rounded-lg p-4">
-      <svg viewBox="0 0 300 232" className="w-full h-auto select-none" aria-hidden>
+      <svg viewBox="0 0 300 250" className="w-full h-auto select-none">
         {AGENTES.map((agent, i) => {
           const pos = agentPos(agent.angle);
           const length = Math.hypot(ENGINE_CENTER.x - pos.x, ENGINE_CENTER.y - pos.y);
-          const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
+          const state = agentState(i);
           const connected = state !== "pending";
           return (
             <line
@@ -178,7 +234,7 @@ function CorrelationEngine({ stepIndex }: { stepIndex: number }) {
               strokeWidth={connected ? 1.6 : 1.2}
               strokeDasharray={length}
               strokeDashoffset={connected ? 0 : length}
-              style={{ transition: "stroke-dashoffset 550ms ease, stroke 300ms ease" }}
+              style={{ transition: "stroke-dashoffset 700ms ease, stroke 300ms ease" }}
             />
           );
         })}
@@ -187,13 +243,13 @@ function CorrelationEngine({ stepIndex }: { stepIndex: number }) {
         <circle
           cx={ENGINE_CENTER.x}
           cy={ENGINE_CENTER.y}
-          r={26}
+          r={27}
           fill="#2563EB"
           opacity={0.15}
           className="animate-ping"
           style={{ transformOrigin: `${ENGINE_CENTER.x}px ${ENGINE_CENTER.y}px` }}
         />
-        <circle cx={ENGINE_CENTER.x} cy={ENGINE_CENTER.y} r={22} fill="#0D1728" stroke="#2563EB" strokeWidth={1.6} />
+        <circle cx={ENGINE_CENTER.x} cy={ENGINE_CENTER.y} r={23} fill="#0D1728" stroke="#2563EB" strokeWidth={1.6} />
         <foreignObject x={ENGINE_CENTER.x - 11} y={ENGINE_CENTER.y - 11} width="22" height="22">
           <div className="w-full h-full flex items-center justify-center text-primary">
             <ChipIcon />
@@ -202,34 +258,54 @@ function CorrelationEngine({ stepIndex }: { stepIndex: number }) {
 
         {AGENTES.map((agent, i) => {
           const pos = agentPos(agent.angle);
-          const state = i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
-          const ringColor = state === "done" ? "#16C784" : state === "active" ? "#2563EB" : "#1C2940";
-          const iconColor = state === "pending" ? "text-muted" : state === "active" ? "text-primary" : "text-success";
+          const state = agentState(i);
+          const isPinned = pinnedId === agent.id;
+          const ringColor = isPinned
+            ? "#38BDF8"
+            : state === "done"
+            ? "#16C784"
+            : state === "active"
+            ? "#2563EB"
+            : "#1C2940";
+          const iconColor = isPinned
+            ? "text-info"
+            : state === "pending"
+            ? "text-muted"
+            : state === "active"
+            ? "text-primary"
+            : "text-success";
           return (
-            <g key={`node-${agent.id}`}>
+            <g
+              key={`node-${agent.id}`}
+              onClick={() => onSelectAgent(agent.id)}
+              style={{ cursor: "pointer" }}
+              role="button"
+              aria-label={`Ver o que o agente ${agent.label} encontrou`}
+            >
+              <circle cx={pos.x} cy={pos.y} r={19} fill="transparent" />
               <circle
                 cx={pos.x}
                 cy={pos.y}
-                r={17}
+                r={17.5}
                 fill="#0D1728"
                 stroke={ringColor}
-                strokeWidth={1.6}
+                strokeWidth={isPinned ? 2.2 : 1.6}
                 className={state === "active" ? "animate-pulse" : ""}
-                style={{ transition: "stroke 300ms ease" }}
+                style={{ transition: "stroke 250ms ease, stroke-width 250ms ease" }}
               />
-              <foreignObject x={pos.x - 9} y={pos.y - 9} width="18" height="18">
-                <div className={`w-full h-full flex items-center justify-center ${iconColor}`} style={{ transition: "color 300ms ease" }}>
+              <foreignObject x={pos.x - 9} y={pos.y - 9} width="18" height="18" style={{ pointerEvents: "none" }}>
+                <div className={`w-full h-full flex items-center justify-center ${iconColor}`} style={{ transition: "color 250ms ease" }}>
                   {AGENT_ICONS[agent.id]}
                 </div>
               </foreignObject>
               <text
                 x={pos.x}
-                y={pos.y + 29}
+                y={pos.y + 30}
                 textAnchor="middle"
                 fontSize="9"
                 fontWeight={700}
-                fill={state === "pending" ? "#66758A" : "#9AA8BC"}
-                style={{ transition: "fill 300ms ease" }}
+                fill={isPinned ? "#38BDF8" : state === "pending" ? "#66758A" : "#9AA8BC"}
+                style={{ transition: "fill 250ms ease" }}
               >
                 {agent.label.toUpperCase()}
               </text>
@@ -238,19 +314,31 @@ function CorrelationEngine({ stepIndex }: { stepIndex: number }) {
         })}
       </svg>
 
-      <div className="flex items-center gap-2 mt-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse flex-none" />
-        <span className="text-[12px] font-semibold text-text2">{CAPTIONS[stepIndex]}</span>
+      <div className="flex items-start gap-2 mt-1 min-h-[32px]">
+        <span
+          className={`w-1.5 h-1.5 rounded-full flex-none mt-1 ${pinnedId ? "bg-info" : "bg-primary animate-pulse"}`}
+        />
+        <span className="text-[12px] leading-snug">
+          <span className="font-bold text-text">{captionTitle}</span>
+          <span className="text-text2"> — {captionDetail}</span>
+        </span>
       </div>
-      <div className="h-[3px] bg-bg rounded-full mt-2.5 overflow-hidden">
+
+      <div className="h-[3px] bg-bg rounded-full mt-2 overflow-hidden">
         <div
           className="h-full bg-primary rounded-full"
           style={{
-            width: `${((stepIndex + 1) / CAPTIONS.length) * 100}%`,
+            width: `${((Math.min(stepIndex, totalSteps - 1) + 1) / totalSteps) * 100}%`,
             transition: "width 400ms ease",
           }}
         />
       </div>
+
+      {!pinnedId && (
+        <div className="text-[10px] text-muted mt-2 text-center">
+          Clique num agente pra ver o que ele encontrou
+        </div>
+      )}
     </div>
   );
 }
@@ -336,31 +424,42 @@ export default function LandingPage() {
   const [demoStage, setDemoStage] = useState<"idle" | "loading" | "result">("idle");
   const [demoIndex, setDemoIndex] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
+  const [pinnedId, setPinnedId] = useState<AgentId | null>(null);
   const demo = DEMO_SIGNALS[demoIndex];
 
-  // O "loading" virou o motor de correlação: os 5 agentes (jogos, estatísticas, odds,
-  // histórico, oportunidades) acendem um de cada vez — CAPTIONS.length é 6 porque depois
-  // dos 5 agentes ainda tem uma última etapa de "correlacionando no núcleo" antes de
-  // revelar a análise.
+  // O "loading" é o motor de correlação: os 5 agentes (jogos, estatísticas, odds,
+  // histórico, oportunidades) acendem um de cada vez, cada um com sua própria duração
+  // (STEP_DURATIONS) — depois dos 5 ainda tem uma última etapa de "correlacionando no
+  // núcleo" (índice 5) antes de revelar a análise.
   useEffect(() => {
     if (demoStage !== "loading") return;
-    if (stepIndex >= CAPTIONS.length - 1) {
-      const t = setTimeout(() => setDemoStage("result"), 650);
+    const dur = STEP_DURATIONS[Math.min(stepIndex, STEP_DURATIONS.length - 1)];
+    if (stepIndex >= AGENTES.length) {
+      const t = setTimeout(() => setDemoStage("result"), dur);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setStepIndex((i) => i + 1), 480);
+    const t = setTimeout(() => setStepIndex((i) => i + 1), dur);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoStage, stepIndex]);
+
+  // Clicar num agente "fixa" o que ele encontrou na legenda por alguns segundos, depois
+  // solta sozinho e volta a acompanhar a etapa que está rolando ao vivo.
+  useEffect(() => {
+    if (!pinnedId) return;
+    const t = setTimeout(() => setPinnedId(null), 3200);
+    return () => clearTimeout(t);
+  }, [pinnedId]);
 
   function startDemo() {
     setStepIndex(0);
+    setPinnedId(null);
     setDemoStage("loading");
   }
 
   function nextDemo() {
     setDemoIndex((i) => (i + 1) % DEMO_SIGNALS.length);
     setStepIndex(0);
+    setPinnedId(null);
     setDemoStage("loading");
   }
 
@@ -488,7 +587,14 @@ export default function LandingPage() {
                 </div>
               )}
 
-              {demoStage === "loading" && <CorrelationEngine stepIndex={stepIndex} />}
+              {demoStage === "loading" && (
+                <CorrelationEngine
+                  stepIndex={stepIndex}
+                  findings={demo.agentFindings}
+                  pinnedId={pinnedId}
+                  onSelectAgent={setPinnedId}
+                />
+              )}
 
               {demoStage === "result" && (
                 <>
