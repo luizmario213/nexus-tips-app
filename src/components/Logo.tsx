@@ -1,7 +1,12 @@
 import Image from "next/image";
 
-// Usa a versão transparente da marca (nx-mark-white.png) — funciona sobre qualquer
-// fundo escuro do produto sem precisar de caixa/contorno.
+// Logo oficial (criado no Canva, paleta nova). Duas peças em /public/brand:
+// - nexus-logo.png   → símbolo + "NEXUS TIPS" (versão para fundo escuro)
+// - nexus-symbol.png → só o símbolo (ícones, espaços pequenos)
+// `size` é a altura de referência do símbolo, como na versão anterior do componente.
+const LOGO_RATIO = 1200 / 358; // largura ÷ altura do nexus-logo.png
+const SYMBOL_RATIO = 628 / 512; // largura ÷ altura do nexus-symbol.png
+
 export function Logo({
   size = 28,
   withWordmark = true,
@@ -11,22 +16,27 @@ export function Logo({
   withWordmark?: boolean;
   className?: string;
 }) {
-  return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
+  if (!withWordmark) {
+    return (
       <Image
-        src="/nx-mark-white.png"
+        src="/brand/nexus-symbol.png"
         alt="Nexus Tips"
-        width={size}
+        width={Math.round(size * SYMBOL_RATIO)}
         height={size}
-        className="flex-none"
+        className={`flex-none ${className}`}
         priority
       />
-      {withWordmark && (
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-bold text-[17px] tracking-wide">NEXUS</span>
-          <span className="text-sm tracking-[3px] text-text2">TIPS</span>
-        </div>
-      )}
-    </div>
+    );
+  }
+  const h = Math.round(size * 1.3);
+  return (
+    <Image
+      src="/brand/nexus-logo.png"
+      alt="Nexus Tips"
+      width={Math.round(h * LOGO_RATIO)}
+      height={h}
+      className={`flex-none ${className}`}
+      priority
+    />
   );
 }

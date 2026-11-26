@@ -103,14 +103,11 @@ export async function desenharCard(d: ShareData, mostrarLucro: boolean): Promise
   ctx.restore();
 
   // marca
-  const logo = await loadImg("/nx-mark-white.png");
-  if (logo) ctx.drawImage(logo, 90, 110, 72, 72);
-  ctx.fillStyle = "#F4F7FF";
-  ctx.font = '700 44px "Geist", sans-serif';
-  ctx.fillText("NEXUS", 186, 162);
-  ctx.fillStyle = "#A4B0D0";
-  ctx.font = '400 34px "Geist", sans-serif';
-  ctx.fillText("T I P S", 352, 160);
+  const logo = await loadImg("/brand/nexus-logo.png");
+  if (logo) {
+    const lh = 96;
+    ctx.drawImage(logo, 80, 96, (logo.width / logo.height) * lh, lh);
+  }
 
   // selo histórico público
   ctx.font = '600 26px "Geist", sans-serif';
