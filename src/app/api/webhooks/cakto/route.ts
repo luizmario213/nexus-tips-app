@@ -110,3 +110,9 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+// Algumas plataformas checam se a URL responde antes de salvar o webhook. Um GET aqui só
+// confirma que o endereço existe — não processa nada.
+export async function GET() {
+  return NextResponse.json({ ok: true, servico: "webhook Cakto · Nexus Tips" });
+}
