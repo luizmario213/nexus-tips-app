@@ -142,3 +142,28 @@ O projeto está travado em Next.js 14.2.35 (a última correção da série 14.x)
 O `npm audit` acusa vulnerabilidades que só têm correção migrando para o
 Next.js 16, uma mudança maior — vale planejar essa migração depois que o
 produto estiver validado no ar, não antes do lançamento.
+
+---
+
+## Pagamento com a Cakto (plano único R$ 29,90/mês)
+
+O botão "Assinar" em `/dashboard/planos` leva ao checkout da Cakto com `?callback=<id da conta>`.
+A Cakto avisa o site em `/api/webhooks/cakto` a cada pagamento, renovação, atraso, cancelamento,
+reembolso ou chargeback, e o acesso é liberado/cortado sozinho. Quem compra antes de ter conta
+ganha o acesso no primeiro login com o mesmo e-mail.
+
+**Ordem para ligar (antes de publicar na main):**
+
+1. Supabase → SQL Editor: rode `supabase/migrations/0005_cakto.sql`.
+2. Cakto → Integrações → Webhooks: crie um webhook com a URL
+   `https://SEU-DOMINIO/api/webhooks/cakto`, marque os eventos `purchase_approved`,
+   `subscription_created`, `subscription_renewed`, `subscription_renewal_refused`,
+   `subscription_late`, `subscription_late_recovered`, `subscription_paused`,
+   `subscription_resumed`, `subscription_canceled`, `refund` e `chargeback`. Copie o **secret**.
+3. Vercel → Settings → Environment Variables:
+   - `CAKTO_WEBHOOK_SECRET` = o secret do passo 2
+   - `SUPABASE_SERVICE_ROLE_KEY` = Supabase → Project Settings → API → service_role
+   - `CAKTO_CLIENT_ID` e `CAKTO_CLIENT_SECRET` (Cakto → Integrações → Cakto API, escopo de
+     assinaturas) — para o botão "Cancelar assinatura" parar a cobrança na Cakto.
+   - opcional: `NEXT_PUBLIC_CAKTO_CHECKOUT_URL` para trocar o link do checkout.
+4. Publique e use o botão de teste de webhook da Cakto para conferir (deve responder 200).

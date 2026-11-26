@@ -3,43 +3,35 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { PLANOS } from "@/lib/types";
-import type { Plano, Subscription } from "@/lib/types";
+import { DEMO_MODE } from "@/lib/supabase/demo";
+import { PLANOS, PLANO_A_VENDA } from "@/lib/types";
+import type { Subscription } from "@/lib/types";
+import { urlDoCheckout } from "@/lib/checkout";
 
-const BENEFICIOS_ATIVOS = [
-  "Eventos ao vivo liberados",
-  "Gestão automática da banca",
-  "Histórico e resultados completos",
+const BENEFICIOS = [
+  "Sala ao Vivo com todos os sinais em tempo real",
+  "Raio-X de cada sinal: o porquê e os riscos",
+  "Gestão de banca, disciplina e histórico completo",
+  "Histórico público — greens e reds, sem filtro",
 ];
 
-const PLANO_FEATURES: Record<Plano, string[]> = {
-  mensal: ["Eventos ao vivo liberados", "Gestão automática da banca", "Histórico e resultados completos"],
-  semestral: ["Tudo do plano mensal", "Preço travado por 6 meses"],
-  anual: ["Tudo do plano mensal", "Preço travado por 12 meses", "Maior economia entre os planos"],
-};
-
-const PLANO_DESTAQUE: Partial<Record<Plano, string>> = {
-  anual: "MELHOR CUSTO-BENEFÍCIO",
-};
-
-const PLANO_SUBTEXT: Partial<Record<Plano, { equivalente: string; economize: string }>> = {
-  anual: { equivalente: "equivalente a R$ 58,16/mês", economize: "Economize R$ 476,90 vs. mensal" },
-  semestral: { equivalente: "equivalente a R$ 66,32/mês", economize: "Economize R$ 189,50 vs. mensal" },
-};
-
-const PLANO_CTA: Record<Plano, string> = {
-  mensal: "Garantir por R$ 47,90",
-  semestral: "Assinar plano semestral",
-  anual: "Assinar plano anual",
-};
+const Check = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5" className="flex-none mt-0.5">
+    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 export default function PlanosPage() {
   const supabase = createClient();
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string>("");
   const [activeSub, setActiveSub] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"assinar" | "cancelar" | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const plano = PLANOS[PLANO_A_VENDA];
 
   useEffect(() => {
     async function init() {
@@ -48,7 +40,7 @@ export default function PlanosPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-
+      setEmail(user.email || "");
       const { data } = await supabase
         .from("subscriptions")
         .select("*")
@@ -63,42 +55,42 @@ export default function PlanosPage() {
     init();
   }, [supabase]);
 
-  async function assinar(plano: Plano) {
+  async function assinar() {
     if (!userId) return;
-    setBusy(plano);
-    // MVP: assinatura é registrada diretamente (sem cobrança real ainda).
-    // Fase 2: aqui entra a chamada à Asaas/Pagar.me para criar a cobrança recorrente
-    // e o webhook em /api/webhooks/asaas passa a ser quem grava/atualiza essa linha.
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .insert({
-        user_id: userId,
-        plano,
-        valor: PLANOS[plano].valor,
-        status: "ativa",
-        provider: "manual",
-      })
-      .select()
-      .single();
-    setBusy(null);
-    if (!error && data) {
-      setActiveSub(data as Subscription);
-      router.refresh();
+    setBusy("assinar");
+    // Modo demonstração: não existe Cakto aqui, então simula a assinatura direto.
+    if (DEMO_MODE) {
+      const { data } = await supabase
+        .from("subscriptions")
+        .insert({ user_id: userId, plano: PLANO_A_VENDA, valor: plano.valor, status: "ativa", provider: "demo" })
+        .select()
+        .single();
+      setBusy(null);
+      if (data) {
+        setActiveSub(data as Subscription);
+        router.refresh();
+      }
+      return;
     }
+    // Pagamento real: vai pro checkout da Cakto. O acesso é liberado quando a Cakto avisa
+    // o site que o pagamento foi aprovado (ver /api/webhooks/cakto).
+    window.location.href = urlDoCheckout(userId);
   }
 
   async function cancelar() {
     if (!activeSub) return;
     setBusy("cancelar");
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({ status: "cancelada", canceled_at: new Date().toISOString() })
-      .eq("id", activeSub.id);
+    setErro(null);
+    const res = await fetch("/api/assinatura/cancelar", { method: "POST" });
+    const body = await res.json().catch(() => ({}));
     setBusy(null);
-    if (!error) {
-      setActiveSub(null);
-      router.refresh();
+    setConfirmCancel(false);
+    if (!res.ok) {
+      setErro(body.error || "Não foi possível cancelar agora. Fale com o suporte.");
+      return;
     }
+    setActiveSub(null);
+    router.refresh();
   }
 
   if (loading) {
@@ -108,160 +100,137 @@ export default function PlanosPage() {
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
       <div>
-        <div className="flex items-center gap-2 mb-2">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4F7BFF" strokeWidth="2">
-            <rect x="2" y="5" width="20" height="14" rx="2.5" />
-          </svg>
-          <span className="text-[11px] font-bold tracking-[0.18em] text-info">
-            {activeSub ? "ASSINATURA" : "PLANOS"}
-          </span>
-        </div>
-        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mb-1">{activeSub ? "Plano ativo" : "Assine e libere tudo"}</h1>
-        <p className="text-text2 text-sm">
-          {activeSub
-            ? "Gerencie sua assinatura Nexus Tips."
-            : "Sem fidelidade — cancela quando quiser, direto por aqui, sem ligação."}
+        <span className="eyebrow">
+          <span className="eyebrow-dot" />
+          {activeSub ? "Assinatura" : "Nexus PRO"}
+        </span>
+        <h1 className="font-display text-[30px] md:text-[40px] font-semibold tracking-[-0.035em] leading-tight mt-4">
+          {activeSub ? (
+            "Seu plano está ativo"
+          ) : (
+            <>
+              Libere a Nexus <span className="text-gradient">inteira</span>
+            </>
+          )}
+        </h1>
+        <p className="text-text2 text-sm mt-1.5">
+          {activeSub ? "Gerencie sua assinatura Nexus Tips." : "Um plano só, tudo liberado. Sem fidelidade — cancela quando quiser, direto por aqui."}
         </p>
       </div>
 
       {activeSub ? (
-        <div className="card relative overflow-hidden p-8 max-w-md border-success/35">
-          <div className="absolute -top-16 -right-12 w-44 h-44 bg-success opacity-[0.10] blur-[70px] rounded-full pointer-events-none" />
+        <div className="card relative overflow-hidden p-7 md:p-8 max-w-lg !border-success/35">
+          <div className="absolute -top-16 -right-12 w-44 h-44 bg-success opacity-[0.12] blur-[70px] rounded-full pointer-events-none" />
           <div className="relative flex justify-between items-start">
             <div>
-              <div className="text-xs font-bold tracking-wide text-success">PLANO ATIVO</div>
-              <div className="text-lg font-bold mt-2">{PLANOS[activeSub.plano].label}</div>
+              <div className="text-[10.5px] font-bold tracking-[0.18em] text-success">PLANO ATIVO</div>
+              <div className="font-display text-xl font-semibold mt-2">Nexus PRO · {PLANOS[activeSub.plano].label}</div>
             </div>
-            <span className="flex items-center gap-1.5 bg-success/15 text-success text-[11px] font-bold px-3 py-1.5 rounded-md">
+            <span className="flex items-center gap-1.5 bg-success/15 text-success text-[11px] font-bold px-3 py-1.5 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
               ATIVA
             </span>
           </div>
-          <div className="relative font-mono text-[28px] font-semibold mt-4">
-            R$ {activeSub.valor.toFixed(2)}
+          <div className="relative font-display text-[32px] font-semibold mt-4">
+            R$ {activeSub.valor.toFixed(2).replace(".", ",")}
             <span className="text-[13px] text-muted font-sans">
               /{activeSub.plano === "mensal" ? "mês" : activeSub.plano === "semestral" ? "6 meses" : "ano"}
             </span>
           </div>
-          <div className="relative text-xs text-text2 mt-2.5">
+          <div className="relative text-xs text-text2 mt-2">
             Ativa desde {new Date(activeSub.created_at).toLocaleDateString("pt-BR")}
+            {activeSub.current_period_end && ` · próxima cobrança por volta de ${new Date(activeSub.current_period_end).toLocaleDateString("pt-BR")}`}
           </div>
 
-          <div className="relative flex flex-col gap-2 mt-5 pt-5 border-t border-border">
-            {BENEFICIOS_ATIVOS.map((b) => (
-              <div key={b} className="flex items-center gap-2 text-xs text-text2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5" className="flex-none">
-                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+          <div className="relative flex flex-col gap-2 mt-5 pt-5 border-t border-white/[0.07]">
+            {BENEFICIOS.map((b) => (
+              <div key={b} className="flex items-start gap-2 text-[13px] text-text2">
+                <Check />
                 {b}
               </div>
             ))}
           </div>
 
-          {activeSub.plano === "mensal" && (
-            <div className="relative text-[11px] text-muted mt-4 bg-elevated border border-border rounded-lg px-3 py-2.5">
-              Quer pagar menos? O plano anual sai por R$ 58,16/mês — economize R$ 476,90 no ano.
-            </div>
-          )}
+          {erro && <div className="relative mt-5 text-[12.5px] text-danger bg-danger/10 border border-danger/30 rounded-xl px-3 py-2.5">{erro}</div>}
 
-          <button
-            onClick={cancelar}
-            disabled={busy === "cancelar"}
-            className="relative w-full mt-6 text-[12.5px] font-semibold text-muted hover:text-danger transition-colors disabled:opacity-40"
-          >
-            {busy === "cancelar" ? "Cancelando…" : "Cancelar assinatura"}
-          </button>
+          {confirmCancel ? (
+            <div className="relative mt-6 rounded-xl border border-warning/30 bg-warning/[0.07] p-4 flex flex-col gap-3">
+              <div className="text-[13px]">Cancelar a assinatura? A cobrança para e o acesso PRO é encerrado.</div>
+              <div className="flex gap-2">
+                <button onClick={cancelar} disabled={busy === "cancelar"} className="btn-ghost text-xs px-4 py-2.5 !text-danger">
+                  {busy === "cancelar" ? "Cancelando…" : "Sim, cancelar"}
+                </button>
+                <button onClick={() => setConfirmCancel(false)} className="btn-primary text-xs px-4 py-2.5">
+                  Manter meu plano
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmCancel(true)}
+              className="relative w-full mt-6 text-[12.5px] font-semibold text-muted hover:text-danger transition-colors"
+            >
+              Cancelar assinatura
+            </button>
+          )}
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(Object.keys(PLANOS) as Plano[]).map((key) => {
-              const p = PLANOS[key];
-              const destaque = PLANO_DESTAQUE[key];
-              const subtext = PLANO_SUBTEXT[key];
-              return (
-                <div
-                  key={key}
-                  className={`card relative p-6 flex flex-col gap-4 ${
-                    destaque ? "border-primary/50 shadow-[0_0_0_1px_rgba(79,123,255,0.35)]" : ""
-                  }`}
-                >
-                  {destaque && (
-                    <span className="absolute -top-3 left-6 bg-primary text-white text-[10px] font-bold tracking-wide px-2.5 py-1 rounded-full">
-                      {destaque}
-                    </span>
-                  )}
-                  <div>
-                    <div className="text-xs font-bold tracking-wide text-text2">{p.label.toUpperCase()}</div>
-                    <div className="mt-2 flex items-baseline gap-1">
-                      <span className="text-2xl font-bold font-mono">R$ {p.valor.toFixed(2)}</span>
-                      {"valorPadrao" in p && p.valorPadrao && (
-                        <span className="text-xs text-muted line-through">R$ {p.valorPadrao.toFixed(2)}</span>
-                      )}
-                    </div>
-                    {subtext ? (
-                      <div className="text-xs text-muted mt-1">{subtext.equivalente}</div>
-                    ) : (
-                      "valorPadrao" in p &&
-                      p.valorPadrao && (
-                        <div className="text-xs text-muted mt-1">válido nas primeiras 48h de lançamento</div>
-                      )
-                    )}
-                    {subtext && (
-                      <div className="inline-flex items-center gap-1.5 bg-success/10 border border-success/30 rounded-md px-2 py-1 mt-2">
-                        <span className="text-[10.5px] font-semibold text-success">{subtext.economize}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-2 pt-3 border-t border-border">
-                    {PLANO_FEATURES[key].map((f) => (
-                      <div key={f} className="flex items-center gap-2 text-xs text-text2">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5" className="flex-none">
-                          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        {f}
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => assinar(key)}
-                    disabled={busy === key}
-                    className={`text-xs py-2.5 disabled:opacity-40 ${
-                      destaque ? "btn-primary" : "btn-outline"
-                    }`}
-                  >
-                    {busy === key ? "Processando…" : PLANO_CTA[key]}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="card p-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A4B0D0" strokeWidth="1.8">
-                  <rect x="5" y="11" width="14" height="9" rx="2" />
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
-                </svg>
+        <div className="grid lg:grid-cols-[1fr_0.9fr] gap-5 items-start">
+          <div className="card glow-border relative overflow-hidden p-7 md:p-9 !bg-[rgba(14,20,50,.75)] shadow-[0_40px_100px_-40px_rgba(79,123,255,.6)]">
+            <div className="absolute -top-24 -right-20 w-80 h-80 rounded-full bg-primary/25 blur-[100px] pointer-events-none" />
+            <div className="relative">
+              <div className="text-[11px] font-bold tracking-[0.2em] text-text2">NEXUS PRO · MENSAL</div>
+              <div className="flex items-baseline gap-1.5 mt-4">
+                <span className="text-text2 text-lg">R$</span>
+                <span className="font-display text-[56px] font-semibold tracking-tight leading-none">{plano.valor.toFixed(2).replace(".", ",")}</span>
+                <span className="text-sm text-muted">/mês</span>
               </div>
-              <span className="text-xs text-text2">
-                A Nexus Tips não movimenta sua banca — você decide o valor e a casa, sempre.
-              </span>
-            </div>
-            <div className="hidden sm:block w-px h-8 bg-border" />
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A4B0D0" strokeWidth="1.8">
-                  <path d="M5 12h14M5 12l4-4M5 12l4 4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+              <div className="text-xs text-muted mt-2">Pix Automático ou cartão · renova todo mês · cancele quando quiser</div>
+              <div className="hairline my-6" />
+              <div className="flex flex-col gap-3">
+                {BENEFICIOS.map((b) => (
+                  <div key={b} className="flex items-start gap-2.5 text-[14px] text-text2">
+                    <Check />
+                    {b}
+                  </div>
+                ))}
               </div>
-              <span className="text-xs text-text2">Sem fidelidade — cancela quando quiser, direto por aqui.</span>
+              <button onClick={assinar} disabled={busy === "assinar"} className="btn-primary w-full text-[15px] py-4 mt-7">
+                {busy === "assinar" ? "Abrindo o checkout…" : `Assinar por R$ ${plano.valor.toFixed(2).replace(".", ",")}/mês`}
+              </button>
+              <p className="text-[11px] text-muted text-center mt-3">Pagamento seguro processado pela Cakto.</p>
             </div>
           </div>
-        </>
+
+          <div className="flex flex-col gap-3">
+            <div className="card p-5 !border-info/30">
+              <div className="text-[10.5px] font-bold tracking-[0.16em] text-info">IMPORTANTE</div>
+              <p className="text-[13px] text-text2 mt-1.5 leading-relaxed">
+                No checkout, use o <span className="text-text font-semibold">mesmo e-mail da sua conta</span>
+                {email ? (
+                  <>
+                    : <span className="font-mono text-text">{email}</span>
+                  </>
+                ) : (
+                  ""
+                )}
+                . O acesso é liberado sozinho assim que o pagamento é aprovado.
+              </p>
+            </div>
+            <div className="card p-5 flex items-start gap-3">
+              <span className="text-lg">🔒</span>
+              <p className="text-[13px] text-text2">A Nexus Tips não movimenta sua banca — você decide o valor e a casa, sempre.</p>
+            </div>
+            <div className="card p-5 flex items-start gap-3">
+              <span className="text-lg">↩︎</span>
+              <p className="text-[13px] text-text2">Sem fidelidade. O cancelamento é um botão aqui mesmo, sem ligação e sem justificativa.</p>
+            </div>
+            <div className="card p-5 flex items-start gap-3">
+              <span className="text-lg">🔞</span>
+              <p className="text-[13px] text-text2">Proibido para menores de 18 anos. Apostas envolvem risco — a Nexus não promete lucro.</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

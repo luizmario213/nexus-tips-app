@@ -161,8 +161,13 @@ export const VALOR_UNIDADE_PCT = 1;
 
 // Preços vigentes — mesmos valores usados no protótipo. Ajuste aqui quando a promoção
 // de lançamento (48h) acabar.
+// Oferta à venda hoje: plano único mensal, cobrado pela Cakto (ver src/lib/checkout.ts).
+// "semestral" e "anual" ficam só pra assinaturas antigas e pra o admin conceder
+// manualmente — não aparecem mais pra venda.
 export const PLANOS = {
-  mensal: { label: "Mensal", valor: 47.9, valorPadrao: 97.9 },
+  mensal: { label: "Mensal", valor: 29.9 },
   semestral: { label: "Semestral", valor: 397.9 },
   anual: { label: "Anual", valor: 697.9 },
 } as const;
+
+export const PLANO_A_VENDA = "mensal" as const;

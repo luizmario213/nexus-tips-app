@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/DashboardShell";
 import { OnboardingTutorial } from "@/components/OnboardingTutorial";
 import { temAcessoLiberado } from "@/lib/access";
+import { reivindicarAssinaturas } from "@/lib/cakto-server";
+import { DEMO_MODE } from "@/lib/supabase/demo";
 
 export default async function DashboardLayout({
   children,
@@ -28,6 +30,16 @@ export default async function DashboardLayout({
   const ultimo = profile?.ultimo_acesso ? new Date(profile.ultimo_acesso).getTime() : 0;
   if (profile && Date.now() - ultimo > 30 * 60 * 1000) {
     await supabase.from("profiles").update({ ultimo_acesso: new Date().toISOString() }).eq("id", user.id);
+  }
+
+  // Comprou na Cakto antes de ter conta? Liga a assinatura a esta conta pelo e-mail.
+  if (!DEMO_MODE) {
+    const { count } = await supabase
+      .from("subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "ativa");
+    if (!count) await reivindicarAssinaturas(user.id, profile?.email || user.email || "");
   }
 
   const { data: activeSub } = await supabase

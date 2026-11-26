@@ -388,17 +388,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-bg text-text overflow-x-hidden">
-      {/* URGÊNCIA */}
-      <div className="relative z-30 bg-gradient-to-r from-warning/0 via-warning/15 to-warning/0 border-b border-warning/20">
-        <div className="px-4 py-2 flex items-center justify-center gap-2 text-center">
-          <span className="w-[7px] h-[7px] rounded-full bg-warning animate-pulse flex-none shadow-[0_0_10px_#FFB547]" />
-          <span className="text-[11.5px] font-semibold text-warning tracking-wide">
-            LANÇAMENTO — 48h pra travar o mensal em R$ {PLANOS.mensal.valor.toFixed(2)}{" "}
-            <span className="text-warning/60">(depois R$ {PLANOS.mensal.valorPadrao.toFixed(2)})</span>
-          </span>
-        </div>
-      </div>
-
       {/* NAV flutuante */}
       <div className="sticky top-0 z-40 px-3 md:px-6 pt-3">
         <nav
@@ -854,114 +843,51 @@ export default function LandingPage() {
         </Reveal>
       </section>
 
-      {/* PLANOS */}
+      {/* PLANO ÚNICO */}
       <section id="planos" className="relative px-5 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
         <SectionHead
           center
-          eyebrow="Planos"
+          eyebrow="Nexus PRO"
           title={
             <>
-              Escolha seu <span className="text-gradient">acesso</span>
+              Um plano. <span className="text-gradient">Tudo liberado.</span>
             </>
           }
-          sub="Assine, acompanhe os eventos monitorados e gerencie sua própria banca — sem fidelidade, cancele quando quiser."
+          sub="Sem tabela confusa, sem fidelidade. Assine, acompanhe os sinais com o porquê de cada um e gerencie sua própria banca — cancele quando quiser."
         />
-        <Reveal delay={80} className="flex justify-center mt-6">
-          <div className="inline-flex items-center gap-2.5 bg-warning/10 border border-warning/40 rounded-full px-4 py-2">
-            <span className="w-[7px] h-[7px] rounded-full bg-warning animate-pulse" />
-            <span className="text-[12px] font-bold text-warning">OFERTA DE LANÇAMENTO — 48H pra travar o mensal por R$ {PLANOS.mensal.valor.toFixed(2)}</span>
-          </div>
+        <Reveal delay={100} className="max-w-xl mx-auto mt-14" >
+          <TiltCard max={5} className="card glow-border p-8 md:p-10 !bg-[rgba(16,24,58,.78)] shadow-[0_40px_100px_-30px_rgba(79,123,255,.6)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[11px] font-bold tracking-[0.2em] text-text2">NEXUS PRO · MENSAL</div>
+              <span className="text-[10.5px] font-bold tracking-wider text-success bg-success/10 border border-success/30 rounded-full px-3 py-1">SEM FIDELIDADE</span>
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-5">
+              <span className="text-text2 text-xl">R$</span>
+              <span className="font-display text-[64px] font-semibold tracking-tight leading-none">{PLANOS.mensal.valor.toFixed(2).replace(".", ",")}</span>
+              <span className="text-[14px] text-muted">/mês</span>
+            </div>
+            <div className="text-xs text-muted mt-2">Pix Automático ou cartão · renovação mensal · cancele com um clique</div>
+            <div className="hairline my-7" />
+            <div className="flex flex-col gap-3.5">
+              {[
+                "Sala ao Vivo: todos os sinais em tempo real, com contagem regressiva",
+                "Raio-X de cada sinal — o que os agentes encontraram e os riscos",
+                "Gestão de banca, regras de disciplina e cockpit de resultados",
+                "Histórico 100% público: greens e reds, sem filtro",
+              ].map((it) => (
+                <div key={it} className="text-[14.5px] text-text2 flex gap-2.5">
+                  <Check />
+                  {it}
+                </div>
+              ))}
+            </div>
+            <Link href="/cadastro" className="btn-primary group w-full text-[15px] py-4 mt-8 inline-flex items-center justify-center gap-2">
+              Começar agora
+              <Arrow />
+            </Link>
+            <p className="text-[11px] text-muted text-center mt-3">Crie sua conta grátis e assine pelo painel. +18 · Apostas envolvem risco.</p>
+          </TiltCard>
         </Reveal>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-14 items-stretch" style={{ perspective: "1400px" }}>
-          {[
-            {
-              key: "mensal",
-              nome: "Mensal",
-              preco: PLANOS.mensal.valor,
-              per: "/mês",
-              sub: (
-                <>
-                  de <span className="line-through">R$ {PLANOS.mensal.valorPadrao.toFixed(2)}</span> — válido nas primeiras 48h
-                </>
-              ),
-              badge: null as string | null,
-              items: ["Eventos ao vivo liberados", "Gestão automática da banca", "Histórico e resultados completos"],
-              cta: `Garantir por R$ ${PLANOS.mensal.valor.toFixed(2)}`,
-              hl: false,
-            },
-            {
-              key: "anual",
-              nome: "Anual",
-              preco: PLANOS.anual.valor,
-              per: "/ano",
-              sub: <>equivalente a R$ 58,16/mês</>,
-              badge: "Economize R$ 476,90 vs. mensal",
-              items: ["Tudo do plano mensal", "Preço travado por 12 meses", "Maior economia entre os planos"],
-              cta: "Assinar plano anual",
-              hl: true,
-            },
-            {
-              key: "semestral",
-              nome: "Semestral",
-              preco: PLANOS.semestral.valor,
-              per: "/6 meses",
-              sub: <>equivalente a R$ 66,32/mês</>,
-              badge: "Economize R$ 189,50 vs. mensal",
-              items: ["Tudo do plano mensal", "Preço travado por 6 meses"],
-              cta: "Assinar plano semestral",
-              hl: false,
-            },
-          ].map((pl, i) => (
-            <Reveal key={pl.key} delay={i * 110} className={pl.hl ? "md:-my-4" : ""}>
-              <TiltCard
-                className={`card p-7 md:p-8 h-full flex flex-col ${
-                  pl.hl ? "glow-border !bg-[rgba(16,24,58,.78)] shadow-[0_40px_100px_-30px_rgba(79,123,255,.6)]" : ""
-                }`}
-              >
-                {pl.hl && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 bg-gradient-to-r from-primary to-accent text-white text-[10.5px] font-bold tracking-wider px-4 py-1.5 rounded-full shadow-[0_8px_24px_-6px_rgba(79,123,255,.8)] whitespace-nowrap">
-                    MELHOR CUSTO-BENEFÍCIO
-                  </div>
-                )}
-                <div className="text-[11px] font-bold tracking-[0.2em] text-text2 uppercase">{pl.nome}</div>
-                <div className="flex items-baseline gap-1.5 mt-4">
-                  <span className="text-text2 text-lg">R$</span>
-                  <span className="font-display text-[46px] font-semibold tracking-tight leading-none">
-                    {pl.preco.toFixed(2).replace(".", ",")}
-                  </span>
-                  <span className="text-[13px] text-muted">{pl.per}</span>
-                </div>
-                <div className="text-xs text-muted mt-2">{pl.sub}</div>
-                {pl.badge && (
-                  <div className="inline-flex w-fit mt-3 bg-success/10 border border-success/40 rounded-full px-3 py-1 text-[11.5px] font-semibold text-success">
-                    {pl.badge}
-                  </div>
-                )}
-                <div className="hairline my-6" />
-                <div className="flex flex-col gap-3 flex-1">
-                  {pl.items.map((it) => (
-                    <div key={it} className="text-[14px] text-text2 flex gap-2.5">
-                      <Check />
-                      {it}
-                    </div>
-                  ))}
-                </div>
-                <Link
-                  href="/cadastro"
-                  className={`${pl.hl ? "btn-primary" : "btn-outline"} group w-full text-sm py-3.5 mt-7 inline-flex items-center justify-center gap-2`}
-                >
-                  {pl.cta}
-                  <Arrow />
-                </Link>
-              </TiltCard>
-            </Reveal>
-          ))}
-        </div>
-        <div className="text-[11.5px] text-muted mt-8 text-center max-w-2xl mx-auto">
-          Após as primeiras 48h de lançamento, o plano mensal passa a custar R$ {PLANOS.mensal.valorPadrao.toFixed(2)}/mês — os
-          valores do semestral e anual usam esse preço cheio como referência de comparação.
-        </div>
       </section>
 
       {/* FAQ */}
