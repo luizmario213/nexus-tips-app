@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PLANOS } from "@/lib/types";
 import type { Subscription, Profile, Plano } from "@/lib/types";
 import { formatBRL, formatDateBR, diasAte } from "@/lib/format";
+import { AvisosCakto } from "@/components/AvisosCakto";
 
 type Filtro = "todas" | "ativa" | "cancelada" | "atrasada";
 
@@ -231,6 +232,7 @@ export default function AdminAssinaturasPage() {
           </div>
         )}
       </div>
+      <AvisosCakto />
     </div>
   );
 }

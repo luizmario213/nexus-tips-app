@@ -2,24 +2,13 @@
 // server components; nunca em arquivo "use client".
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLANO_A_VENDA, PLANOS } from "@/lib/types";
+import { EVENTO_PARA_STATUS_PUBLICO } from "@/lib/cakto-eventos";
 
 type Admin = ReturnType<typeof createAdminClient>;
 export type StatusCakto = "ativa" | "atrasada" | "cancelada";
 
 // Evento da Cakto → estado da assinatura no Nexus. Eventos fora da lista só ficam no log.
-export const EVENTO_PARA_STATUS: Record<string, StatusCakto> = {
-  purchase_approved: "ativa",
-  subscription_created: "ativa",
-  subscription_renewed: "ativa",
-  subscription_late_recovered: "ativa",
-  subscription_resumed: "ativa",
-  subscription_renewal_refused: "atrasada",
-  subscription_late: "atrasada",
-  subscription_paused: "cancelada",
-  subscription_canceled: "cancelada",
-  refund: "cancelada",
-  chargeback: "cancelada",
-};
+export const EVENTO_PARA_STATUS: Record<string, StatusCakto> = EVENTO_PARA_STATUS_PUBLICO;
 
 // Uma assinatura por comprador e produto. Se a pessoa cancelar e assinar de novo, a mesma
 // linha volta a ficar "ativa" — sem duplicar.
