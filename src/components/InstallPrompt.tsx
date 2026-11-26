@@ -70,7 +70,7 @@ export function InstallPrompt() {
           onClick={abrirInstalacao}
           className="flex items-center gap-2 text-xs font-semibold text-text"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4F7BFF" strokeWidth="2">
             <path d="M12 3v12m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

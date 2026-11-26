@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PLANOS } from "@/lib/types";
 import { Logo } from "@/components/Logo";
+import { NexusCore, Reveal, TiltCard, CountUp, Magnetic } from "@/components/fx";
 
 const DEMO_SIGNALS = [
   {
@@ -95,37 +96,7 @@ const ETAPAS = [
   { n: "06", t: "Resultado em 30 dias", d: "A assertividade do período fica pública, sempre atualizada." },
 ];
 
-// Motor de correlação exibido na demo do hero: um núcleo central ("IA Nexus") e 5 agentes
-// satélite, cada um puxando uma fonte de dado diferente. As posições são coordenadas fixas
-// num círculo de raio ENGINE_RADIUS ao redor de ENGINE_CENTER — geometria de um pentágono
-// regular, calculada uma vez e reaproveitada tanto pros nós quanto pras linhas de conexão.
-const ENGINE_CENTER = { x: 150, y: 126 };
-const ENGINE_RADIUS = 82;
-
-const AGENTES = [
-  { id: "jogos", label: "Jogos do dia", verbo: "Buscando jogos do dia", angle: -90 },
-  { id: "stats", label: "Estatísticas", verbo: "Cruzando estatísticas das equipes", angle: -18 },
-  { id: "odds", label: "Odds do mercado", verbo: "Puxando odds do mercado", angle: 54 },
-  { id: "historico", label: "Histórico", verbo: "Consultando histórico de confrontos", angle: 126 },
-  { id: "oportunidade", label: "Oportunidades", verbo: "Mapeando oportunidades de valor", angle: 198 },
-] as const;
-
-type AgentId = (typeof AGENTES)[number]["id"];
-
-function agentPos(angle: number) {
-  const rad = (angle * Math.PI) / 180;
-  return {
-    x: ENGINE_CENTER.x + ENGINE_RADIUS * Math.cos(rad),
-    y: ENGINE_CENTER.y + ENGINE_RADIUS * Math.sin(rad),
-  };
-}
-
-// Duração (ms) de cada etapa — uma por agente (0..4) mais a etapa final de correlação no
-// núcleo (5). Variada de propósito, pra não parecer um metrônomo — cada "análise" leva um
-// tempo diferente, do jeito que um processo de verdade levaria.
-const STEP_DURATIONS = [950, 800, 1050, 900, 1150, 1000];
-
-const AGENT_ICONS: Record<(typeof AGENTES)[number]["id"], React.ReactNode> = {
+const AGENT_ICONS: Record<string, React.ReactNode> = {
   jogos: (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -159,189 +130,19 @@ const AGENT_ICONS: Record<(typeof AGENTES)[number]["id"], React.ReactNode> = {
   ),
 };
 
-// SVG do "cérebro" — um chip/núcleo, não um desenho literal de cérebro, pra ficar
-// consistente com a linha visual técnica do resto do produto (sem ilustração fofa).
-const ChipIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-    <rect x="7" y="7" width="10" height="10" rx="2" />
-    <path
-      d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"
-      strokeLinecap="round"
-    />
-  </svg>
-);
+const AGENTES = [
+  { id: "jogos", label: "Jogos do dia", verbo: "Buscando jogos do dia" },
+  { id: "stats", label: "Estatísticas", verbo: "Cruzando estatísticas das equipes" },
+  { id: "odds", label: "Odds do mercado", verbo: "Puxando odds do mercado" },
+  { id: "historico", label: "Histórico", verbo: "Consultando histórico de confrontos" },
+  { id: "oportunidade", label: "Oportunidades", verbo: "Mapeando oportunidades de valor" },
+] as const;
 
-// O diagrama de correlação em si: núcleo central pulsando + 5 agentes ao redor, com a
-// linha de cada um "se desenhando" até o centro conforme ele entra em `stepIndex`. Cada
-// linha usa stroke-dasharray igual ao próprio comprimento e anima o dashoffset até 0 —
-// truque clássico de "desenhar" uma linha em CSS sem depender de nenhuma lib externa.
-//
-// Interativo: dá pra clicar em qualquer agente (mesmo antes ou depois da vez dele) pra
-// "fixar" o que ele encontrou na legenda de baixo — some sozinho depois de alguns
-// segundos e volta a acompanhar a etapa que está rolando ao vivo.
-function CorrelationEngine({
-  stepIndex,
-  findings,
-  pinnedId,
-  onSelectAgent,
-}: {
-  stepIndex: number;
-  findings: Record<AgentId, string>;
-  pinnedId: AgentId | null;
-  onSelectAgent: (id: AgentId) => void;
-}) {
-  const totalSteps = AGENTES.length + 1;
-  const agentState = (i: number) => (i < stepIndex ? "done" : i === stepIndex ? "active" : "pending");
+type AgentId = (typeof AGENTES)[number]["id"];
 
-  const pinnedIndex = pinnedId ? AGENTES.findIndex((a) => a.id === pinnedId) : -1;
-  const pinnedState = pinnedIndex >= 0 ? agentState(pinnedIndex) : null;
-
-  let captionTitle: string;
-  let captionDetail: string;
-  if (pinnedId && pinnedIndex >= 0) {
-    const agent = AGENTES[pinnedIndex];
-    if (pinnedState === "pending") {
-      captionTitle = agent.label;
-      captionDetail = "ainda não entrou na análise — aguarde a vez dele.";
-    } else {
-      captionTitle = agent.label;
-      captionDetail = findings[agent.id];
-    }
-  } else if (stepIndex < AGENTES.length) {
-    captionTitle = AGENTES[stepIndex].label;
-    captionDetail = findings[AGENTES[stepIndex].id];
-  } else {
-    captionTitle = "Correlação concluída";
-    captionDetail = "todos os agentes concordam — sinal aprovado.";
-  }
-
-  return (
-    <div className="bg-elevated rounded-lg p-4">
-      <svg viewBox="0 0 300 250" className="w-full h-auto select-none">
-        {AGENTES.map((agent, i) => {
-          const pos = agentPos(agent.angle);
-          const length = Math.hypot(ENGINE_CENTER.x - pos.x, ENGINE_CENTER.y - pos.y);
-          const state = agentState(i);
-          const connected = state !== "pending";
-          return (
-            <line
-              key={`line-${agent.id}`}
-              x1={pos.x}
-              y1={pos.y}
-              x2={ENGINE_CENTER.x}
-              y2={ENGINE_CENTER.y}
-              stroke={connected ? "#2563EB" : "#1C2940"}
-              strokeWidth={connected ? 1.6 : 1.2}
-              strokeDasharray={length}
-              strokeDashoffset={connected ? 0 : length}
-              style={{ transition: "stroke-dashoffset 700ms ease, stroke 300ms ease" }}
-            />
-          );
-        })}
-
-        {/* Núcleo — chip central com anel pulsando enquanto o motor trabalha. */}
-        <circle
-          cx={ENGINE_CENTER.x}
-          cy={ENGINE_CENTER.y}
-          r={27}
-          fill="#2563EB"
-          opacity={0.15}
-          className="animate-ping"
-          style={{ transformOrigin: `${ENGINE_CENTER.x}px ${ENGINE_CENTER.y}px` }}
-        />
-        <circle cx={ENGINE_CENTER.x} cy={ENGINE_CENTER.y} r={23} fill="#0D1728" stroke="#2563EB" strokeWidth={1.6} />
-        <foreignObject x={ENGINE_CENTER.x - 11} y={ENGINE_CENTER.y - 11} width="22" height="22">
-          <div className="w-full h-full flex items-center justify-center text-primary">
-            <ChipIcon />
-          </div>
-        </foreignObject>
-
-        {AGENTES.map((agent, i) => {
-          const pos = agentPos(agent.angle);
-          const state = agentState(i);
-          const isPinned = pinnedId === agent.id;
-          const ringColor = isPinned
-            ? "#38BDF8"
-            : state === "done"
-            ? "#16C784"
-            : state === "active"
-            ? "#2563EB"
-            : "#1C2940";
-          const iconColor = isPinned
-            ? "text-info"
-            : state === "pending"
-            ? "text-muted"
-            : state === "active"
-            ? "text-primary"
-            : "text-success";
-          return (
-            <g
-              key={`node-${agent.id}`}
-              onClick={() => onSelectAgent(agent.id)}
-              style={{ cursor: "pointer" }}
-              role="button"
-              aria-label={`Ver o que o agente ${agent.label} encontrou`}
-            >
-              <circle cx={pos.x} cy={pos.y} r={19} fill="transparent" />
-              <circle
-                cx={pos.x}
-                cy={pos.y}
-                r={17.5}
-                fill="#0D1728"
-                stroke={ringColor}
-                strokeWidth={isPinned ? 2.2 : 1.6}
-                className={state === "active" ? "animate-pulse" : ""}
-                style={{ transition: "stroke 250ms ease, stroke-width 250ms ease" }}
-              />
-              <foreignObject x={pos.x - 9} y={pos.y - 9} width="18" height="18" style={{ pointerEvents: "none" }}>
-                <div className={`w-full h-full flex items-center justify-center ${iconColor}`} style={{ transition: "color 250ms ease" }}>
-                  {AGENT_ICONS[agent.id]}
-                </div>
-              </foreignObject>
-              <text
-                x={pos.x}
-                y={pos.y + 30}
-                textAnchor="middle"
-                fontSize="9"
-                fontWeight={700}
-                fill={isPinned ? "#38BDF8" : state === "pending" ? "#66758A" : "#9AA8BC"}
-                style={{ transition: "fill 250ms ease" }}
-              >
-                {agent.label.toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-
-      <div className="flex items-start gap-2 mt-1 min-h-[32px]">
-        <span
-          className={`w-1.5 h-1.5 rounded-full flex-none mt-1 ${pinnedId ? "bg-info" : "bg-primary animate-pulse"}`}
-        />
-        <span className="text-[12px] leading-snug">
-          <span className="font-bold text-text">{captionTitle}</span>
-          <span className="text-text2"> — {captionDetail}</span>
-        </span>
-      </div>
-
-      <div className="h-[3px] bg-bg rounded-full mt-2 overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full"
-          style={{
-            width: `${((Math.min(stepIndex, totalSteps - 1) + 1) / totalSteps) * 100}%`,
-            transition: "width 400ms ease",
-          }}
-        />
-      </div>
-
-      {!pinnedId && (
-        <div className="text-[10px] text-muted mt-2 text-center">
-          Clique num agente pra ver o que ele encontrou
-        </div>
-      )}
-    </div>
-  );
-}
+// Duração (ms) de cada etapa — uma por agente (0..4) mais a etapa final de correlação no
+// núcleo (5). Variada de propósito, pra não parecer um metrônomo.
+const STEP_DURATIONS = [950, 800, 1050, 900, 1150, 1000];
 
 const FAQ_RAPIDO = [
   {
@@ -362,61 +163,166 @@ const FAQ_RAPIDO = [
   },
 ];
 
-const Check = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.2"
-    className="flex-none mt-0.5 text-success"
-  >
+const PILAR_ICONS = [
+  <svg key="0" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="7" y="7" width="10" height="10" rx="2" /><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" strokeLinecap="round" /></svg>,
+  <svg key="1" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="0.8" fill="currentColor" /></svg>,
+  <svg key="2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /><circle cx="16" cy="14.5" r="1.3" fill="currentColor" stroke="none" /></svg>,
+  <svg key="3" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z" strokeLinejoin="round" /><path d="M8.5 12l2.3 2.3L16 9" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+];
+
+const Check = ({ className = "" }: { className?: string }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className={`flex-none mt-0.5 text-success ${className}`}>
     <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const XMark = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.2"
-    className="flex-none mt-0.5 text-danger"
-  >
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="flex-none mt-0.5 text-danger">
     <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
   </svg>
 );
 
-function AssertividadeGaugeMarketing({ value }: { value: number }) {
-  const size = 172;
-  const stroke = 13;
+const Arrow = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="flex-none transition-transform group-hover:translate-x-0.5">
+    <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+function SectionHead({
+  eyebrow,
+  title,
+  sub,
+  tone = "blue",
+  center = false,
+}: {
+  eyebrow: string;
+  title: React.ReactNode;
+  sub?: React.ReactNode;
+  tone?: "blue" | "red" | "green";
+  center?: boolean;
+}) {
+  const toneCls =
+    tone === "red"
+      ? "!text-danger !border-danger/30 !bg-danger/10"
+      : tone === "green"
+      ? "!text-success !border-success/30 !bg-success/10"
+      : "";
+  const dot = tone === "red" ? "!bg-danger !shadow-[0_0_12px_#FF4D6D]" : tone === "green" ? "!bg-success !shadow-[0_0_12px_#14E3A0]" : "";
+  return (
+    <Reveal className={`max-w-2xl ${center ? "mx-auto text-center flex flex-col items-center" : ""}`}>
+      <span className={`eyebrow ${toneCls}`}>
+        <span className={`eyebrow-dot ${dot}`} />
+        {eyebrow}
+      </span>
+      <h2 className="font-display text-[34px] md:text-[48px] font-semibold leading-[1.04] tracking-[-0.03em] mt-5">{title}</h2>
+      {sub && <p className="text-text2 text-[15px] md:text-base leading-relaxed mt-4 max-w-xl">{sub}</p>}
+    </Reveal>
+  );
+}
+
+// Linha do tempo que se "acende" conforme a seção é rolada.
+function useScrollProgress<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = ref.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const vh = window.innerHeight;
+        const k = (vh * 0.65 - r.top) / r.height;
+        setP(Math.max(0, Math.min(1, k)));
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+  return { ref, p };
+}
+
+function Gauge({ value }: { value: number }) {
+  const size = 220;
+  const stroke = 14;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const offset = c - (value / 100) * c;
+  const ref = useRef<SVGCircleElement>(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && setOn(true), { threshold: 0.4 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   return (
     <div className="relative flex-none" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1C2940" strokeWidth={stroke} />
+      <div className="absolute inset-4 rounded-full bg-success/20 blur-3xl" />
+      <div className="absolute inset-0 rounded-full animate-spin-slow" style={{ background: "conic-gradient(from 0deg, transparent, rgba(20,227,160,.25), transparent 30%)" }} />
+      <svg width={size} height={size} className="-rotate-90 relative">
+        <defs>
+          <linearGradient id="gauge-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#33D6F5" />
+            <stop offset="100%" stopColor="#14E3A0" />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(120,145,220,.12)" strokeWidth={stroke} />
         <circle
+          ref={ref}
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#16C784"
+          stroke="url(#gauge-g)"
           strokeWidth={stroke}
           strokeDasharray={c}
-          strokeDashoffset={offset}
+          strokeDashoffset={on ? c - (value / 100) * c : c}
           strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 2s cubic-bezier(.2,.8,.2,1)", filter: "drop-shadow(0 0 10px rgba(20,227,160,.6))" }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-[32px] font-bold leading-none">{value.toFixed(1).replace(".", ",")}%</span>
-        <span className="text-[9.5px] font-semibold text-text2 tracking-wide mt-1.5">ASSERTIVIDADE · 30D</span>
+        <CountUp to={value} decimals={1} suffix="%" className="font-display text-[44px] font-semibold leading-none tracking-tight" />
+        <span className="text-[10px] font-bold text-text2 tracking-[0.2em] mt-2">ASSERTIVIDADE · 30D</span>
       </div>
     </div>
+  );
+}
+
+function FaqItem({ p, r, i }: { p: string; r: string; i: number }) {
+  const [open, setOpen] = useState(i === 0);
+  return (
+    <Reveal delay={i * 80}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`card w-full text-left px-6 py-5 group ${open ? "!border-primary/40" : ""}`}
+        aria-expanded={open}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-[15px] font-semibold">{p}</span>
+          <span
+            className={`w-8 h-8 flex-none rounded-full border border-border flex items-center justify-center transition-all duration-300 ${
+              open ? "rotate-45 bg-primary/15 border-primary/50 text-text" : "text-text2"
+            }`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+          </span>
+        </div>
+        <div className="grid transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)]" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
+          <div className="overflow-hidden">
+            <p className="text-[14px] text-text2 leading-relaxed pt-3 pr-10">{r}</p>
+          </div>
+        </div>
+      </button>
+    </Reveal>
   );
 }
 
@@ -425,12 +331,29 @@ export default function LandingPage() {
   const [demoIndex, setDemoIndex] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
   const [pinnedId, setPinnedId] = useState<AgentId | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const demo = DEMO_SIGNALS[demoIndex];
+  const heroRef = useRef<HTMLDivElement>(null);
+  const labelRefs = useRef<(HTMLElement | null)[]>([]);
+  const [isDesktop, setIsDesktop] = useState(true);
+  const timeline = useScrollProgress<HTMLDivElement>();
 
-  // O "loading" é o motor de correlação: os 5 agentes (jogos, estatísticas, odds,
-  // histórico, oportunidades) acendem um de cada vez, cada um com sua própria duração
-  // (STEP_DURATIONS) — depois dos 5 ainda tem uma última etapa de "correlacionando no
-  // núcleo" (índice 5) antes de revelar a análise.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => setIsDesktop(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      mq.removeEventListener("change", on);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  // O "loading" é o motor de correlação: os 5 agentes acendem um de cada vez — no 3D e
+  // no painel — e depois tem a etapa final de correlação no núcleo (índice 5).
   useEffect(() => {
     if (demoStage !== "loading") return;
     const dur = STEP_DURATIONS[Math.min(stepIndex, STEP_DURATIONS.length - 1)];
@@ -442,8 +365,6 @@ export default function LandingPage() {
     return () => clearTimeout(t);
   }, [demoStage, stepIndex]);
 
-  // Clicar num agente "fixa" o que ele encontrou na legenda por alguns segundos, depois
-  // solta sozinho e volta a acompanhar a etapa que está rolando ao vivo.
   useEffect(() => {
     if (!pinnedId) return;
     const t = setTimeout(() => setPinnedId(null), 3200);
@@ -458,127 +379,186 @@ export default function LandingPage() {
 
   function nextDemo() {
     setDemoIndex((i) => (i + 1) % DEMO_SIGNALS.length);
-    setStepIndex(0);
-    setPinnedId(null);
-    setDemoStage("loading");
+    startDemo();
   }
+
+  const step3d = demoStage === "loading" ? stepIndex : demoStage === "result" ? 5 : -1;
+  const agentState = (i: number) =>
+    demoStage === "result" ? "done" : demoStage !== "loading" ? "pending" : i < stepIndex ? "done" : i === stepIndex ? "active" : "pending";
 
   return (
     <div className="min-h-screen bg-bg text-text overflow-x-hidden">
-      {/* NAV */}
-      <div className="flex items-center justify-between px-6 md:px-16 py-5 border-b border-border sticky top-0 z-20 bg-bg/90 backdrop-blur">
-        <Logo size={30} />
-        <div className="hidden md:flex items-center gap-7 text-[13px] font-semibold text-text2">
-          <a href="#comparacao" className="hover:text-text transition-colors">Por que a Nexus</a>
-          <a href="#resultados" className="hover:text-text transition-colors">Resultados</a>
-          <a href="#planos" className="hover:text-text transition-colors">Planos</a>
-          <a href="#faq" className="hover:text-text transition-colors">Dúvidas</a>
-        </div>
-        <div className="flex items-center gap-3.5">
-          <Link href="/login" className="text-text2 hover:text-text text-sm font-semibold px-2 sm:px-4 py-2.5">
-            Entrar
-          </Link>
-          <Link href="/cadastro" className="btn-primary text-sm px-5 py-2.5">
-            Criar conta
-          </Link>
-        </div>
-      </div>
-
       {/* URGÊNCIA */}
-      <div className="bg-warning/10 border-b border-warning/30">
-        <div className="px-6 md:px-16 py-2.5 flex items-center justify-center gap-2 text-center">
-          <span className="w-[7px] h-[7px] rounded-full bg-warning animate-pulse flex-none" />
-          <span className="text-[12px] font-bold text-warning">
-            LANÇAMENTO — 48h pra travar o plano mensal em R$ {PLANOS.mensal.valor.toFixed(2)} (depois vai pra R$ {PLANOS.mensal.valorPadrao.toFixed(2)})
+      <div className="relative z-30 bg-gradient-to-r from-warning/0 via-warning/15 to-warning/0 border-b border-warning/20">
+        <div className="px-4 py-2 flex items-center justify-center gap-2 text-center">
+          <span className="w-[7px] h-[7px] rounded-full bg-warning animate-pulse flex-none shadow-[0_0_10px_#FFB547]" />
+          <span className="text-[11.5px] font-semibold text-warning tracking-wide">
+            LANÇAMENTO — 48h pra travar o mensal em R$ {PLANOS.mensal.valor.toFixed(2)}{" "}
+            <span className="text-warning/60">(depois R$ {PLANOS.mensal.valorPadrao.toFixed(2)})</span>
           </span>
         </div>
       </div>
 
-      {/* HERO */}
-      <div className="relative">
-        <div className="absolute top-0 right-0 w-[520px] h-[520px] bg-primary opacity-[0.10] blur-[120px] rounded-full pointer-events-none" />
-        <div className="relative flex flex-col md:flex-row items-center gap-12 md:gap-16 px-6 md:px-16 py-16 md:py-20">
-          <div className="flex-1 flex flex-col gap-5">
-            <div className="inline-flex items-center gap-2 bg-surface border border-border rounded-md px-3 py-1.5 w-fit">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <span className="text-[11px] font-bold tracking-widest text-info">
-                INTELIGÊNCIA ESPORTIVA
+      {/* NAV flutuante */}
+      <div className="sticky top-0 z-40 px-3 md:px-6 pt-3">
+        <nav
+          className={`mx-auto max-w-6xl flex items-center justify-between rounded-2xl px-4 md:px-5 transition-all duration-500 ${
+            scrolled
+              ? "py-2.5 bg-[rgba(8,12,28,0.72)] border border-white/[0.08] backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,.8)]"
+              : "py-3.5 bg-transparent border border-transparent"
+          }`}
+        >
+          <Logo size={28} />
+          <div className="hidden md:flex items-center gap-1 text-[13px] font-medium text-text2">
+            {[
+              ["#comparacao", "Por que a Nexus"],
+              ["#como-funciona", "Como funciona"],
+              ["#resultados", "Resultados"],
+              ["#planos", "Planos"],
+              ["#faq", "Dúvidas"],
+            ].map(([h, l]) => (
+              <a key={h} href={h} className="px-3.5 py-2 rounded-lg hover:text-text hover:bg-white/[0.05] transition-colors">
+                {l}
+              </a>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/login" className="text-text2 hover:text-text text-sm font-semibold px-3 py-2">
+              Entrar
+            </Link>
+            <Link href="/cadastro" className="btn-primary text-sm px-4 md:px-5 py-2.5">
+              Criar conta
+            </Link>
+          </div>
+        </nav>
+      </div>
+
+      {/* HERO 3D */}
+      <section ref={heroRef} className="relative -mt-[72px] pt-[72px] min-h-[100svh] flex flex-col">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_40%,rgba(79,123,255,.18),transparent_60%)]" />
+          <div className="nx-grid opacity-60" />
+        </div>
+
+        {/* Cena 3D + labels ancorados nos agentes */}
+        <div className="absolute inset-0">
+          <NexusCore
+            className={`absolute inset-0 transition-opacity duration-700 ${isDesktop ? "" : "opacity-60"}`}
+            step={step3d}
+            complete={demoStage === "result"}
+            offsetX={isDesktop ? 2.5 : 0}
+            offsetY={isDesktop ? 0.55 : 0.6}
+            scale={isDesktop ? 0.92 : 0.72}
+            particles={isDesktop ? 2600 : 1400}
+            labelRefs={labelRefs}
+            eventSource={heroRef}
+            onAgentClick={(i) => setPinnedId(AGENTES[i].id)}
+          />
+          <div className="absolute inset-0 pointer-events-none hidden lg:block">
+            {AGENTES.map((a, i) => {
+              const st = agentState(i);
+              const pinned = pinnedId === a.id;
+              return (
+                <div
+                  key={a.id}
+                  ref={(el) => {
+                    labelRefs.current[i] = el;
+                  }}
+                  className="absolute left-0 top-0 transition-opacity duration-300"
+                  style={{ willChange: "transform" }}
+                >
+                  <div
+                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10.5px] font-semibold backdrop-blur-md transition-all duration-300 ${
+                      pinned
+                        ? "border-info/60 bg-info/15 text-info"
+                        : st === "active"
+                        ? "border-info/50 bg-info/10 text-info scale-110"
+                        : st === "done"
+                        ? "border-success/40 bg-success/10 text-success"
+                        : "border-white/10 bg-white/[0.04] text-text2"
+                    }`}
+                  >
+                    <span className="opacity-90">{AGENT_ICONS[a.id]}</span>
+                    {a.label}
+                  </div>
+                  {(pinned || st === "active") && (
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 w-56 text-center text-[10.5px] leading-snug text-text2 bg-[rgba(6,10,24,.85)] border border-white/10 rounded-lg px-2.5 py-1.5 backdrop-blur-md animate-fade-up">
+                      {demoStage === "idle" && !pinned ? a.verbo : demo.agentFindings[a.id]}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="relative z-10 flex-1 flex flex-col lg:flex-row items-center max-w-7xl w-full mx-auto px-5 md:px-10 pt-16 md:pt-24 pb-10 gap-10 pointer-events-none">
+          <div className="flex-1 max-w-2xl flex flex-col gap-6 pointer-events-auto">
+            <div className="animate-fade-up">
+              <span className="eyebrow">
+                <span className="eyebrow-dot" />
+                Inteligência esportiva
               </span>
             </div>
-            <h1 className="text-4xl md:text-[54px] font-bold leading-[1.08] tracking-tight">
-              Tipster esconde red.<br />
-              <span className="text-primary">Nós publicamos todos.</span>
+            <h1
+              className="font-display text-[44px] sm:text-[60px] lg:text-[76px] font-semibold leading-[0.98] tracking-[-0.045em] animate-fade-up"
+              style={{ animationDelay: "80ms" }}
+            >
+              Tipster esconde red.
+              <br />
+              <span className="text-gradient">Nós publicamos</span>{" "}
+              <span className="font-serif italic font-normal tracking-[-0.02em] text-text">todos.</span>
             </h1>
-            <p className="text-text2 text-base md:text-[17px] leading-relaxed max-w-lg">
-              A Nexus Tips organiza contexto, mostra o porquê de cada sinal e mantém o
-              histórico 100% público — greens e reds, sem esconder nada. Você decide,
-              gerencia sua própria banca e nunca fica no escuro.
+            <p className="text-text2 text-base md:text-[18px] leading-relaxed max-w-xl animate-fade-up" style={{ animationDelay: "160ms" }}>
+              A Nexus Tips organiza contexto, mostra o porquê de cada sinal e mantém o histórico 100% público — greens e
+              reds, sem esconder nada. Você decide, gerencia sua própria banca e nunca fica no escuro.
             </p>
-            <div className="flex flex-wrap gap-3.5 items-center mt-1.5">
-              <Link href="/cadastro" className="btn-primary text-[15px] px-6 py-3.5">
-                Quero ver os resultados agora
-              </Link>
-              <a href="#planos" className="btn-outline text-[15px] px-6 py-3.5 inline-flex items-center">
+            <div className="flex flex-wrap gap-3 items-center animate-fade-up" style={{ animationDelay: "240ms" }}>
+              <Magnetic>
+                <Link href="/cadastro" className="btn-primary group text-[15px] px-7 py-4 inline-flex items-center gap-2">
+                  Quero ver os resultados agora
+                  <Arrow />
+                </Link>
+              </Magnetic>
+              <a href="#planos" className="btn-ghost text-[15px] px-6 py-4 inline-flex items-center">
                 Ver planos
               </a>
             </div>
-            <div className="flex flex-col gap-1.5 mt-1">
-              <div className="flex items-center gap-2">
-                <Check />
-                <span className="text-[12.5px] text-text2">
-                  Sem gestão do seu dinheiro pela Nexus Tips — a banca é 100% sua, sempre.
-                </span>
+            <div className="flex flex-col sm:flex-row gap-x-6 gap-y-2 animate-fade-up" style={{ animationDelay: "320ms" }}>
+              <div className="flex items-center gap-2 text-[13px] text-text2">
+                <Check /> Banca 100% sua, sempre
               </div>
-              <div className="flex items-center gap-2">
-                <Check />
-                <span className="text-[12.5px] text-text2">
-                  Sem fidelidade — cancela quando quiser, direto pelo painel.
-                </span>
+              <div className="flex items-center gap-2 text-[13px] text-text2">
+                <Check /> Sem fidelidade — cancele no painel
               </div>
             </div>
           </div>
 
-          <div className="flex-1 flex justify-center relative w-full">
-            <div className="absolute top-5 w-72 h-72 bg-primary opacity-[0.16] blur-[60px] rounded-full pointer-events-none" />
-            {/* Esse card usa literalmente a mesma linguagem visual do card de sinal de
-                verdade (ver src/app/dashboard/eventos/page.tsx: eyebrow + jogo numa linha só
-                + pill de status + chip mono da odd) — de propósito, pra não parecer um
-                mockup inventado só pra demo. */}
+          {/* DEMO — painel de vidro que controla o núcleo 3D */}
+          <div className="w-full lg:w-[360px] lg:self-end lg:mb-4 pointer-events-auto animate-fade-up" style={{ animationDelay: "400ms" }}>
             <div
-              className={`relative card p-5 w-full max-w-[380px] transition-colors ${
-                demoStage === "result"
-                  ? "border-l-2 border-l-info"
-                  : demoStage === "loading"
-                  ? "border-l-2 border-l-primary"
-                  : ""
+              className={`card p-5 transition-all duration-500 ${
+                demoStage === "result" ? "glow-border" : demoStage === "loading" ? "!border-info/40" : ""
               }`}
             >
-              {demoStage !== "result" && (
-                <span className="absolute top-4 right-4 text-[9px] font-bold text-muted bg-elevated px-1.5 py-0.5 rounded z-10">
-                  DEMO
-                </span>
-              )}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${demoStage === "loading" ? "bg-info animate-pulse" : demoStage === "result" ? "bg-success" : "bg-muted"}`} />
+                  <span className="text-[10.5px] font-bold tracking-[0.18em] text-text2">
+                    {demoStage === "idle" ? "MOTOR NEXUS · EM ESPERA" : demoStage === "loading" ? "CORRELACIONANDO DADOS" : "SINAL APROVADO"}
+                  </span>
+                </div>
+                <span className="text-[9px] font-bold text-muted bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded">DEMO</span>
+              </div>
 
               {demoStage === "idle" && (
-                <div className="flex flex-col items-center text-center gap-3.5 py-5">
-                  <div className="w-11 h-11 rounded-full bg-elevated border border-border flex items-center justify-center">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-text2">
-                      <circle cx="11" cy="11" r="7" />
-                      <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold">Nenhuma oportunidade selecionada</div>
-                    <p className="text-xs text-text2 mt-1.5 max-w-[250px] leading-relaxed">
-                      Clique e deixe o motor cruzar jogos, estatísticas, odds e histórico até
-                      encontrar um sinal com valor.
-                    </p>
-                  </div>
-                  <button
-                    onClick={startDemo}
-                    className="btn-primary text-sm py-3 px-6 mt-1 inline-flex items-center gap-2"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="flex-none">
+                <div className="flex flex-col gap-4">
+                  <p className="text-[13px] text-text2 leading-relaxed">
+                    Ative o motor e veja os 5 agentes cruzarem jogos, estatísticas, odds e histórico até encontrar um sinal
+                    com valor. <span className="text-text">Clique no núcleo</span> pra sentir a energia.
+                  </p>
+                  <button onClick={startDemo} className="btn-primary group text-sm py-3.5 px-6 inline-flex items-center justify-center gap-2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                       <circle cx="11" cy="11" r="7" />
                       <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
                     </svg>
@@ -588,371 +568,464 @@ export default function LandingPage() {
               )}
 
               {demoStage === "loading" && (
-                <CorrelationEngine
-                  stepIndex={stepIndex}
-                  findings={demo.agentFindings}
-                  pinnedId={pinnedId}
-                  onSelectAgent={setPinnedId}
-                />
+                <div className="flex flex-col gap-2">
+                  {AGENTES.map((a, i) => {
+                    const st = agentState(i);
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setPinnedId(a.id)}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2 text-left transition-all duration-300 border ${
+                          st === "active"
+                            ? "bg-info/10 border-info/40"
+                            : st === "done"
+                            ? "bg-success/[0.06] border-success/20"
+                            : "bg-white/[0.02] border-white/[0.05]"
+                        }`}
+                      >
+                        <span className={`flex-none ${st === "active" ? "text-info" : st === "done" ? "text-success" : "text-muted"}`}>
+                          {AGENT_ICONS[a.id]}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className={`block text-[12px] font-semibold ${st === "pending" ? "text-muted" : "text-text"}`}>{a.label}</span>
+                          {st !== "pending" && <span className="block text-[10.5px] text-text2 truncate">{demo.agentFindings[a.id]}</span>}
+                        </span>
+                        {st === "done" && <Check />}
+                        {st === "active" && <span className="w-3.5 h-3.5 rounded-full border-2 border-info/30 border-t-info animate-spin flex-none" />}
+                      </button>
+                    );
+                  })}
+                  <div className="h-[3px] bg-white/[0.06] rounded-full mt-2 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-primary via-info to-success"
+                      style={{ width: `${((Math.min(stepIndex, AGENTES.length) + 1) / (AGENTES.length + 1)) * 100}%`, transition: "width 500ms ease" }}
+                    />
+                  </div>
+                  {stepIndex >= AGENTES.length && (
+                    <div className="text-[11px] text-info text-center mt-1 animate-pulse">Correlacionando no núcleo…</div>
+                  )}
+                </div>
               )}
 
               {demoStage === "result" && (
-                <>
-                  <div className="flex items-start justify-between gap-3">
+                <div className="animate-fade-up">
+                  <div className="text-[10px] text-muted font-semibold tracking-[0.12em]">{demo.comp}</div>
+                  <div className="flex items-end justify-between gap-3 mt-1.5">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] font-bold text-muted bg-elevated px-1.5 py-0.5 rounded flex-none">
-                          DEMO
-                        </span>
-                        <span className="text-[10px] text-muted font-semibold tracking-wide">{demo.comp}</span>
+                      <div className="font-display text-xl font-semibold leading-tight">
+                        {demo.timeA} <span className="text-muted font-normal">x</span> {demo.timeB}
                       </div>
-                      <div className="text-sm font-bold mt-1">
-                        {demo.timeA} x {demo.timeB}
-                      </div>
-                      <div className="text-xs text-text2 mt-1">
-                        <span className="font-semibold text-text">{demo.mercado}</span>
-                      </div>
+                      <div className="text-[13px] text-text2 mt-1">{demo.mercado}</div>
                     </div>
-                    <div className="flex-none flex flex-col items-end gap-1.5">
-                      <span className="text-[10px] font-bold tracking-wide rounded-full px-2.5 py-1 border whitespace-nowrap bg-info/10 border-info text-info">
-                        NO AR
-                      </span>
-                      <span className="bg-elevated border border-border rounded-md px-2.5 py-1 font-mono text-base font-semibold">
-                        {demo.odd}
-                      </span>
+                    <div className="flex-none text-right">
+                      <div className="text-[9px] font-bold text-info tracking-widest">ODD</div>
+                      <div className="font-mono text-[28px] font-semibold leading-none text-gradient">{demo.odd}</div>
                     </div>
                   </div>
-
-                  <div className="mt-3.5 pt-3.5 border-t border-border">
+                  <div className="mt-4 pt-4 border-t border-white/[0.07]">
                     <div className="flex items-center justify-between mb-2 gap-2">
-                      <span className="text-[10.5px] font-bold tracking-wide text-primary">
-                        POR QUE ESSE SINAL FOI APROVADO
-                      </span>
-                      <span className="text-[9.5px] font-bold text-muted bg-elevated px-2 py-1 rounded flex-none">
+                      <span className="text-[10px] font-bold tracking-[0.14em] text-primary">POR QUE FOI APROVADO</span>
+                      <span className="text-[9.5px] font-semibold text-text2 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-full">
                         {demo.estrategia}
                       </span>
                     </div>
                     <p className="text-[12.5px] text-text2 leading-relaxed">{demo.rationale}</p>
                   </div>
-
-                  <button onClick={nextDemo} className="btn-outline w-full text-[13px] py-2.5 mt-3.5">
+                  <button onClick={nextDemo} className="btn-outline w-full text-[13px] py-2.5 mt-4">
                     Ver outro exemplo
                   </button>
-                  <div className="text-[10.5px] text-muted text-center mt-2.5">
-                    Exemplo ilustrativo do produto — não é recomendação de aposta.
-                  </div>
-                </>
+                  <div className="text-[10px] text-muted text-center mt-2.5">Exemplo ilustrativo — não é recomendação de aposta.</div>
+                </div>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* COMPARAÇÃO — o ângulo mais persuasivo: nomear o inimigo */}
-      <div id="comparacao" className="px-6 md:px-16 py-14 md:py-20 border-t border-border">
-        <div className="max-w-2xl mb-9">
-          <div className="inline-flex items-center gap-2 bg-danger/10 border border-danger/30 rounded-md px-3 py-1.5 w-fit mb-4">
-            <span className="text-[11px] font-bold tracking-widest text-danger">O PROBLEMA</span>
-          </div>
-          <h2 className="text-[28px] md:text-[32px] font-bold leading-tight mb-3">
-            A maioria dos grupos de tips vive de sorte e edição de print.
-          </h2>
-          <p className="text-text2 text-[15px] leading-relaxed">
-            Você já viu: green vem com captura de tela enorme, red simplesmente some da
-            conversa. Não tem como conferir nada. A Nexus foi construída pra ser o
-            oposto disso.
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div className="min-w-[640px] grid grid-cols-[1.2fr_1fr_1fr] gap-px bg-border rounded-xl overflow-hidden border border-border">
-            <div className="bg-bg2 p-4">
-              <span className="text-[11px] font-bold text-muted tracking-wide">CRITÉRIO</span>
-            </div>
-            <div className="bg-bg2 p-4">
-              <span className="text-[11px] font-bold text-danger tracking-wide">TIPSTER COMUM</span>
-            </div>
-            <div className="bg-primary/10 p-4">
-              <span className="text-[11px] font-bold text-primary tracking-wide">NEXUS TIPS</span>
-            </div>
-            {COMPARACAO.map((c) => (
-              <>
-                <div key={`${c.ponto}-l`} className="bg-surface p-4 flex items-center">
-                  <span className="text-sm font-semibold">{c.ponto}</span>
-                </div>
-                <div key={`${c.ponto}-r`} className="bg-surface p-4 flex items-start gap-2">
-                  <XMark />
-                  <span className="text-[13px] text-text2 leading-snug">{c.ruim}</span>
-                </div>
-                <div key={`${c.ponto}-n`} className="bg-primary/[0.04] p-4 flex items-start gap-2">
-                  <Check />
-                  <span className="text-[13px] leading-snug">{c.bom}</span>
-                </div>
-              </>
+        {/* faixa de métricas do hero */}
+        <div className="relative z-10 max-w-7xl w-full mx-auto px-5 md:px-10 pb-10">
+          <div className="grid grid-cols-3 gap-px rounded-2xl overflow-hidden border border-white/[0.07] bg-white/[0.05] backdrop-blur-xl max-w-2xl">
+            {[
+              { v: <CountUp to={94.8} decimals={1} suffix="%" />, l: "assertividade 30d" },
+              { v: <CountUp to={142} />, l: "sinais publicados" },
+              { v: <CountUp to={100} suffix="%" />, l: "histórico público" },
+            ].map((s, i) => (
+              <div key={i} className="bg-[rgba(6,10,24,.6)] px-4 md:px-6 py-4">
+                <div className="font-display text-xl md:text-[26px] font-semibold tracking-tight">{s.v}</div>
+                <div className="text-[10.5px] md:text-[11px] text-muted mt-0.5 uppercase tracking-wider">{s.l}</div>
+              </div>
             ))}
           </div>
         </div>
+      </section>
+
+      {/* TICKER */}
+      <div className="relative border-y border-white/[0.06] bg-white/[0.015] overflow-hidden py-4 [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
+        <div className="marquee-track flex w-max gap-10">
+          {[...Array(2)].flatMap((_, k) =>
+            [...DEMO_SIGNALS, ...DEMO_SIGNALS].map((s, i) => (
+              <div key={`${k}-${i}`} className="flex items-center gap-3 text-[13px] whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-info shadow-[0_0_8px_#33D6F5]" />
+                <span className="text-muted font-semibold text-[11px] tracking-wider">{s.comp.split("·")[0]}</span>
+                <span className="font-semibold">
+                  {s.timeA} x {s.timeB}
+                </span>
+                <span className="text-text2">{s.mercado}</span>
+                <span className="font-mono text-info">@{s.odd}</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
+
+      {/* COMPARAÇÃO */}
+      <section id="comparacao" className="relative px-5 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
+        <SectionHead
+          eyebrow="O problema"
+          tone="red"
+          title={
+            <>
+              A maioria dos grupos de tips vive de <span className="font-serif italic font-normal">sorte</span> e edição de print.
+            </>
+          }
+          sub="Green vem com captura de tela enorme, red simplesmente some da conversa. Não tem como conferir nada. A Nexus foi construída pra ser o oposto disso."
+        />
+
+        <div className="grid md:grid-cols-2 gap-5 mt-14" style={{ perspective: "1400px" }}>
+          <Reveal>
+            <TiltCard className="card p-7 md:p-8 h-full opacity-80 hover:opacity-100 !bg-[rgba(30,10,20,.35)] !border-danger/15">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-danger tracking-[0.2em]">TIPSTER COMUM</span>
+                <span className="w-9 h-9 rounded-full bg-danger/10 border border-danger/25 flex items-center justify-center">
+                  <XMark />
+                </span>
+              </div>
+              <div className="mt-6 flex flex-col divide-y divide-white/[0.05]">
+                {COMPARACAO.map((c) => (
+                  <div key={c.ponto} className="py-3.5 flex flex-col gap-1">
+                    <span className="text-[10.5px] text-muted font-semibold tracking-wider uppercase">{c.ponto}</span>
+                    <span className="flex gap-2 text-[14px] text-text2 line-through decoration-danger/40">
+                      <XMark />
+                      {c.ruim}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </TiltCard>
+          </Reveal>
+          <Reveal delay={120}>
+            <TiltCard className="card glow-border p-7 md:p-8 h-full !bg-[rgba(14,22,52,.7)] shadow-[0_30px_80px_-30px_rgba(79,123,255,.55)]">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-info tracking-[0.2em]">NEXUS TIPS</span>
+                <span className="w-9 h-9 rounded-full bg-success/10 border border-success/30 flex items-center justify-center">
+                  <Check className="!mt-0" />
+                </span>
+              </div>
+              <div className="mt-6 flex flex-col divide-y divide-white/[0.06]">
+                {COMPARACAO.map((c) => (
+                  <div key={c.ponto} className="py-3.5 flex flex-col gap-1">
+                    <span className="text-[10.5px] text-muted font-semibold tracking-wider uppercase">{c.ponto}</span>
+                    <span className="flex gap-2 text-[14px] text-text">
+                      <Check />
+                      {c.bom}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </TiltCard>
+          </Reveal>
+        </div>
+      </section>
 
       {/* PILARES */}
-      <div className="px-6 md:px-16 py-14 border-t border-border">
-        <h2 className="text-[23px] font-bold mb-1.5">Como a Nexus chega numa entrada</h2>
-        <p className="text-text2 text-sm mb-7 max-w-lg">
-          Tecnologia, precisão, controle e confiança — não é slogan, é a ordem em que cada
-          sinal é montado.
-        </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4.5">
+      <section className="relative px-5 md:px-10 py-20 max-w-7xl mx-auto">
+        <SectionHead
+          eyebrow="Metodologia"
+          title="Como a Nexus chega numa entrada"
+          sub="Tecnologia, precisão, controle e confiança — não é slogan, é a ordem em que cada sinal é montado."
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
           {PILARES.map((p, i) => (
-            <div key={p.titulo} className="card p-5.5 relative overflow-hidden">
-              <span className="absolute -right-2 -top-3 text-[52px] font-bold text-elevated select-none leading-none">
-                {i + 1}
-              </span>
-              <div className="relative flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span className="font-bold text-[13px] tracking-wide">{p.titulo}</span>
-              </div>
-              <p className="relative text-text2 text-[13px] leading-relaxed mt-2.5">{p.texto}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ETAPAS */}
-      <div className="px-6 md:px-16 py-14 border-t border-border">
-        <h2 className="text-[23px] font-bold mb-1.5">
-          O que você acompanha, do primeiro clique em diante
-        </h2>
-        <p className="text-text2 text-sm mb-7">
-          Cada etapa do sinal fica visível — sem caixa-preta.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {ETAPAS.map((e) => (
-            <div key={e.t} className="card px-5 py-4.5 flex items-start gap-3.5">
-              <span className="font-mono text-[11px] font-bold text-primary bg-primary/10 rounded-md px-1.5 py-0.5 flex-none mt-0.5">
-                {e.n}
-              </span>
-              <div>
-                <div className="text-[13.5px] font-bold">{e.t}</div>
-                <div className="text-[12px] text-text2 mt-0.5 leading-snug">{e.d}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-8 border-l-2 border-primary pl-4.5">
-          <p className="text-lg font-semibold leading-relaxed">
-            &quot;A Nexus Tips entrega inteligência para decisão. Não vende certeza.&quot;
-          </p>
-        </div>
-      </div>
-
-      {/* RESULTADOS (prova pública) */}
-      <div id="resultados" className="px-6 md:px-16 py-14 md:py-20 border-t border-border relative overflow-hidden">
-        <div className="absolute -bottom-24 left-1/3 w-[480px] h-[480px] bg-success opacity-[0.06] blur-[120px] rounded-full pointer-events-none" />
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 bg-success/10 border border-success/30 rounded-md px-3 py-1.5 w-fit mb-4">
-            <span className="text-[11px] font-bold tracking-widest text-success">RESULTADOS, SEM CAIXA-PRETA</span>
-          </div>
-          <h2 className="text-[26px] md:text-[30px] font-bold mb-2 max-w-xl">
-            Números calculados em cima do que foi publicado — não do que sobrou.
-          </h2>
-          <p className="text-text2 text-sm mb-8 max-w-lg">
-            Tudo abaixo é sobre os sinais encerrados na plataforma nos últimos 30 dias.
-            Sem projeção, sem promessa — é o histórico verificável, aberto pra qualquer
-            pessoa, assinante ou não.
-          </p>
-
-          <div className="flex flex-col lg:flex-row items-center gap-10 bg-surface border border-border rounded-2xl p-7 md:p-9">
-            <AssertividadeGaugeMarketing value={94.8} />
-            <div className="flex-1 grid grid-cols-2 gap-6 w-full">
-              <div>
-                <div className="text-xs font-semibold text-text2">SINAIS PUBLICADOS · 30 DIAS</div>
-                <div className="text-[11px] text-muted mt-1">Volume de análises entregues no período.</div>
-                <div className="font-mono text-3xl font-semibold mt-2.5">142</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-text2">GREENS / REDS · 30 DIAS</div>
-                <div className="text-[11px] text-muted mt-1">Resultado bruto de tudo que foi encerrado.</div>
-                <div className="font-mono text-3xl font-semibold mt-2.5">
-                  <span className="text-success">121</span>
-                  <span className="text-muted text-lg"> / </span>
-                  <span className="text-danger">21</span>
+            <Reveal key={p.titulo} delay={i * 90}>
+              <TiltCard className="card p-6 h-full group">
+                <div className="flex items-start justify-between">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-info bg-gradient-to-br from-primary/25 to-accent/10 border border-primary/25 shadow-[0_0_30px_-8px_rgba(79,123,255,.7)] group-hover:scale-110 transition-transform duration-500">
+                    {PILAR_ICONS[i]}
+                  </div>
+                  <span className="font-display text-[54px] font-semibold leading-none text-transparent [-webkit-text-stroke:1px_rgba(120,145,220,.25)] select-none">
+                    0{i + 1}
+                  </span>
                 </div>
-              </div>
-              <div className="col-span-2 pt-2 border-t border-border">
-                <p className="text-[12px] text-text2 leading-relaxed">
-                  As 21 operações com red estão contadas aqui — do mesmo jeito que os 121
-                  greens. É assim que um histórico público funciona: mostra tudo, não só
-                  a parte boa.
+                <div className="font-display font-semibold text-[17px] tracking-wide mt-6">{p.titulo}</div>
+                <p className="text-text2 text-[13.5px] leading-relaxed mt-2">{p.texto}</p>
+              </TiltCard>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ETAPAS — linha do tempo que acende com o scroll */}
+      <section id="como-funciona" className="relative px-5 md:px-10 py-24 max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-[1fr_1.2fr] gap-14">
+          <div className="lg:sticky lg:top-32 self-start">
+            <SectionHead
+              eyebrow="Do clique ao resultado"
+              title="O que você acompanha, do primeiro clique em diante"
+              sub="Cada etapa do sinal fica visível — sem caixa-preta."
+            />
+            <Reveal delay={150} className="mt-10">
+              <div className="border-l-2 border-primary pl-5">
+                <p className="font-serif italic text-[26px] leading-snug text-text">
+                  “A Nexus Tips entrega inteligência para decisão. Não vende certeza.”
                 </p>
               </div>
+            </Reveal>
+          </div>
+          <div ref={timeline.ref} className="relative pl-10">
+            <div className="absolute left-[15px] top-2 bottom-2 w-px bg-white/[0.08]" />
+            <div
+              className="absolute left-[15px] top-2 w-px bg-gradient-to-b from-primary via-info to-success shadow-[0_0_12px_rgba(51,214,245,.8)]"
+              style={{ height: `calc(${timeline.p * 100}% - 16px)` }}
+            />
+            <div className="flex flex-col gap-4">
+              {ETAPAS.map((e, i) => {
+                const lit = timeline.p >= (i + 0.3) / ETAPAS.length;
+                return (
+                  <Reveal key={e.t} delay={i * 60}>
+                    <div className="relative">
+                      <span
+                        className={`absolute -left-10 top-5 w-[31px] h-[31px] rounded-full flex items-center justify-center border font-mono text-[10px] font-bold transition-all duration-500 ${
+                          lit
+                            ? "bg-primary/20 border-info text-info shadow-[0_0_20px_rgba(51,214,245,.6)]"
+                            : "bg-bg border-white/10 text-muted"
+                        }`}
+                      >
+                        {e.n}
+                      </span>
+                      <div className={`card px-6 py-5 transition-all duration-500 ${lit ? "!border-primary/30 translate-x-1" : ""}`}>
+                        <div className="text-[15px] font-semibold">{e.t}</div>
+                        <div className="text-[13.5px] text-text2 mt-1 leading-relaxed">{e.d}</div>
+                      </div>
+                    </div>
+                  </Reveal>
+                );
+              })}
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* PRICING */}
-      <div id="planos" className="px-6 md:px-16 py-14 md:py-20 border-t border-border pb-20">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-1.5">
-          <div>
-            <h2 className="text-[23px] font-bold mb-1.5">Planos de assinatura</h2>
-            <p className="text-text2 text-sm">
-              Assine, acompanhe os eventos monitorados e gerencie sua própria banca — sem
-              fidelidade, cancele quando quiser.
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-2.5 bg-warning/10 border border-warning rounded-lg px-4 py-2.5">
+      {/* RESULTADOS */}
+      <section id="resultados" className="relative px-5 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
+        <div className="absolute -bottom-10 left-1/3 w-[520px] h-[520px] bg-success opacity-[0.07] blur-[130px] rounded-full pointer-events-none" />
+        <SectionHead
+          eyebrow="Resultados sem caixa-preta"
+          tone="green"
+          title="Números calculados em cima do que foi publicado — não do que sobrou."
+          sub="Tudo abaixo é sobre os sinais encerrados nos últimos 30 dias. Sem projeção, sem promessa — histórico verificável, aberto pra qualquer pessoa, assinante ou não."
+        />
+        <Reveal delay={100} className="mt-12">
+          <TiltCard max={4} className="card p-8 md:p-10 flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+            <Gauge value={94.8} />
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
+                <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em]">SINAIS PUBLICADOS · 30D</div>
+                <div className="font-display text-5xl font-semibold mt-3 tracking-tight">
+                  <CountUp to={142} />
+                </div>
+                <div className="text-[12px] text-muted mt-2">Volume de análises entregues no período.</div>
+              </div>
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
+                <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em]">GREENS / REDS · 30D</div>
+                <div className="font-display text-5xl font-semibold mt-3 tracking-tight">
+                  <CountUp to={121} className="text-success" />
+                  <span className="text-muted text-2xl"> / </span>
+                  <CountUp to={21} className="text-danger" />
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-danger/30 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-info to-success rounded-full" style={{ width: `${(121 / 142) * 100}%` }} />
+                </div>
+              </div>
+              <p className="sm:col-span-2 text-[13px] text-text2 leading-relaxed">
+                As 21 operações com red estão contadas aqui — do mesmo jeito que os 121 greens. É assim que um histórico
+                público funciona: mostra tudo, não só a parte boa.
+              </p>
+            </div>
+          </TiltCard>
+        </Reveal>
+      </section>
+
+      {/* PLANOS */}
+      <section id="planos" className="relative px-5 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
+        <SectionHead
+          center
+          eyebrow="Planos"
+          title={
+            <>
+              Escolha seu <span className="text-gradient">acesso</span>
+            </>
+          }
+          sub="Assine, acompanhe os eventos monitorados e gerencie sua própria banca — sem fidelidade, cancele quando quiser."
+        />
+        <Reveal delay={80} className="flex justify-center mt-6">
+          <div className="inline-flex items-center gap-2.5 bg-warning/10 border border-warning/40 rounded-full px-4 py-2">
             <span className="w-[7px] h-[7px] rounded-full bg-warning animate-pulse" />
-            <span className="text-[12.5px] font-bold text-warning">
-              OFERTA DE LANÇAMENTO — 48H para travar o mensal por R$ {PLANOS.mensal.valor.toFixed(2)}
-            </span>
+            <span className="text-[12px] font-bold text-warning">OFERTA DE LANÇAMENTO — 48H pra travar o mensal por R$ {PLANOS.mensal.valor.toFixed(2)}</span>
           </div>
-        </div>
+        </Reveal>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5 mt-6">
-          {/* MENSAL */}
-          <div className="card p-7 flex flex-col">
-            <div className="text-xs font-bold tracking-wide text-text2">MENSAL</div>
-            <div className="flex items-baseline gap-2 mt-3">
-              <div className="font-mono text-3xl font-semibold">
-                R$ {PLANOS.mensal.valor.toFixed(2)}
-                <span className="text-[13px] text-muted font-sans">/mês</span>
-              </div>
-            </div>
-            <div className="text-xs text-muted mt-1">
-              de <span className="line-through">R$ {PLANOS.mensal.valorPadrao.toFixed(2)}</span> —
-              válido para quem assinar nas primeiras 48h de lançamento
-            </div>
-            <div className="h-px bg-border my-5" />
-            <div className="flex flex-col gap-2.5 flex-1">
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Eventos ao vivo liberados
-              </div>
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Gestão automática da banca
-              </div>
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Histórico e resultados completos
-              </div>
-            </div>
-            <Link href="/cadastro" className="btn-outline w-full text-sm py-3.5 mt-5 text-center">
-              Garantir por R$ {PLANOS.mensal.valor.toFixed(2)}
-            </Link>
-          </div>
-
-          {/* ANUAL destaque */}
-          <div className="card p-7 flex flex-col relative border-primary shadow-[0_12px_40px_rgba(37,99,235,0.18)]">
-            <div className="absolute -top-3 left-7 bg-primary text-white text-[10.5px] font-bold px-3 py-1.5 rounded-md">
-              MELHOR CUSTO-BENEFÍCIO
-            </div>
-            <div className="text-xs font-bold tracking-wide text-text2">ANUAL</div>
-            <div className="flex items-baseline gap-2 mt-3">
-              <div className="font-mono text-3xl font-semibold">
-                R$ {PLANOS.anual.valor.toFixed(2)}
-                <span className="text-[13px] text-muted font-sans">/ano</span>
-              </div>
-            </div>
-            <div className="text-xs text-muted mt-1">equivalente a R$ 58,16/mês</div>
-            <div className="inline-flex w-fit mt-2.5 bg-success/10 border border-success rounded px-2.5 py-1 text-[11.5px] font-bold text-success">
-              Economize R$ 476,90 vs. mensal
-            </div>
-            <div className="h-px bg-border my-5" />
-            <div className="flex flex-col gap-2.5 flex-1">
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Tudo do plano mensal
-              </div>
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Preço travado por 12 meses
-              </div>
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Maior economia entre os planos
-              </div>
-            </div>
-            <Link href="/cadastro" className="btn-primary w-full text-sm py-3.5 mt-5 text-center">
-              Assinar plano anual
-            </Link>
-          </div>
-
-          {/* SEMESTRAL */}
-          <div className="card p-7 flex flex-col">
-            <div className="text-xs font-bold tracking-wide text-text2">SEMESTRAL</div>
-            <div className="flex items-baseline gap-2 mt-3">
-              <div className="font-mono text-3xl font-semibold">
-                R$ {PLANOS.semestral.valor.toFixed(2)}
-                <span className="text-[13px] text-muted font-sans">/6 meses</span>
-              </div>
-            </div>
-            <div className="text-xs text-muted mt-1">equivalente a R$ 66,32/mês</div>
-            <div className="inline-flex w-fit mt-2.5 bg-success/10 border border-success rounded px-2.5 py-1 text-[11.5px] font-bold text-success">
-              Economize R$ 189,50 vs. mensal
-            </div>
-            <div className="h-px bg-border my-5" />
-            <div className="flex flex-col gap-2.5 flex-1">
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Tudo do plano mensal
-              </div>
-              <div className="text-sm text-text2 flex gap-2">
-                <Check />
-                Preço travado por 6 meses
-              </div>
-            </div>
-            <Link href="/cadastro" className="btn-outline w-full text-sm py-3.5 mt-5 text-center">
-              Assinar plano semestral
-            </Link>
-          </div>
-        </div>
-        <div className="text-[11.5px] text-muted mt-4">
-          Após as primeiras 48h de lançamento, o plano mensal passa a custar R${" "}
-          {PLANOS.mensal.valorPadrao.toFixed(2)}/mês — os valores acima do semestral e anual
-          usam esse preço cheio como referência de comparação.
-        </div>
-      </div>
-
-      {/* FAQ RÁPIDO / QUEBRA DE OBJEÇÃO */}
-      <div id="faq" className="px-6 md:px-16 py-14 border-t border-border">
-        <h2 className="text-[23px] font-bold mb-1.5">Antes de você perguntar</h2>
-        <p className="text-text2 text-sm mb-7 max-w-lg">
-          As dúvidas que mais aparecem antes de alguém assinar — sem enrolação.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {FAQ_RAPIDO.map((f) => (
-            <div key={f.p} className="card p-5">
-              <div className="text-sm font-bold">{f.p}</div>
-              <p className="text-[13px] text-text2 leading-relaxed mt-2">{f.r}</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-14 items-stretch" style={{ perspective: "1400px" }}>
+          {[
+            {
+              key: "mensal",
+              nome: "Mensal",
+              preco: PLANOS.mensal.valor,
+              per: "/mês",
+              sub: (
+                <>
+                  de <span className="line-through">R$ {PLANOS.mensal.valorPadrao.toFixed(2)}</span> — válido nas primeiras 48h
+                </>
+              ),
+              badge: null as string | null,
+              items: ["Eventos ao vivo liberados", "Gestão automática da banca", "Histórico e resultados completos"],
+              cta: `Garantir por R$ ${PLANOS.mensal.valor.toFixed(2)}`,
+              hl: false,
+            },
+            {
+              key: "anual",
+              nome: "Anual",
+              preco: PLANOS.anual.valor,
+              per: "/ano",
+              sub: <>equivalente a R$ 58,16/mês</>,
+              badge: "Economize R$ 476,90 vs. mensal",
+              items: ["Tudo do plano mensal", "Preço travado por 12 meses", "Maior economia entre os planos"],
+              cta: "Assinar plano anual",
+              hl: true,
+            },
+            {
+              key: "semestral",
+              nome: "Semestral",
+              preco: PLANOS.semestral.valor,
+              per: "/6 meses",
+              sub: <>equivalente a R$ 66,32/mês</>,
+              badge: "Economize R$ 189,50 vs. mensal",
+              items: ["Tudo do plano mensal", "Preço travado por 6 meses"],
+              cta: "Assinar plano semestral",
+              hl: false,
+            },
+          ].map((pl, i) => (
+            <Reveal key={pl.key} delay={i * 110} className={pl.hl ? "md:-my-4" : ""}>
+              <TiltCard
+                className={`card p-7 md:p-8 h-full flex flex-col ${
+                  pl.hl ? "glow-border !bg-[rgba(16,24,58,.78)] shadow-[0_40px_100px_-30px_rgba(79,123,255,.6)]" : ""
+                }`}
+              >
+                {pl.hl && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 bg-gradient-to-r from-primary to-accent text-white text-[10.5px] font-bold tracking-wider px-4 py-1.5 rounded-full shadow-[0_8px_24px_-6px_rgba(79,123,255,.8)] whitespace-nowrap">
+                    MELHOR CUSTO-BENEFÍCIO
+                  </div>
+                )}
+                <div className="text-[11px] font-bold tracking-[0.2em] text-text2 uppercase">{pl.nome}</div>
+                <div className="flex items-baseline gap-1.5 mt-4">
+                  <span className="text-text2 text-lg">R$</span>
+                  <span className="font-display text-[46px] font-semibold tracking-tight leading-none">
+                    {pl.preco.toFixed(2).replace(".", ",")}
+                  </span>
+                  <span className="text-[13px] text-muted">{pl.per}</span>
+                </div>
+                <div className="text-xs text-muted mt-2">{pl.sub}</div>
+                {pl.badge && (
+                  <div className="inline-flex w-fit mt-3 bg-success/10 border border-success/40 rounded-full px-3 py-1 text-[11.5px] font-semibold text-success">
+                    {pl.badge}
+                  </div>
+                )}
+                <div className="hairline my-6" />
+                <div className="flex flex-col gap-3 flex-1">
+                  {pl.items.map((it) => (
+                    <div key={it} className="text-[14px] text-text2 flex gap-2.5">
+                      <Check />
+                      {it}
+                    </div>
+                  ))}
+                </div>
+                <Link
+                  href="/cadastro"
+                  className={`${pl.hl ? "btn-primary" : "btn-outline"} group w-full text-sm py-3.5 mt-7 inline-flex items-center justify-center gap-2`}
+                >
+                  {pl.cta}
+                  <Arrow />
+                </Link>
+              </TiltCard>
+            </Reveal>
           ))}
         </div>
-      </div>
+        <div className="text-[11.5px] text-muted mt-8 text-center max-w-2xl mx-auto">
+          Após as primeiras 48h de lançamento, o plano mensal passa a custar R$ {PLANOS.mensal.valorPadrao.toFixed(2)}/mês — os
+          valores do semestral e anual usam esse preço cheio como referência de comparação.
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="relative px-5 md:px-10 py-20 max-w-4xl mx-auto">
+        <SectionHead center eyebrow="Dúvidas" title="Antes de você perguntar" sub="As dúvidas que mais aparecem antes de alguém assinar — sem enrolação." />
+        <div className="flex flex-col gap-3 mt-12">
+          {FAQ_RAPIDO.map((f, i) => (
+            <FaqItem key={f.p} p={f.p} r={f.r} i={i} />
+          ))}
+        </div>
+      </section>
 
       {/* CTA FINAL */}
-      <div className="px-6 md:px-16 py-16 border-t border-border">
-        <div className="card relative overflow-hidden p-9 md:p-12 text-center flex flex-col items-center gap-4">
-          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary opacity-[0.14] blur-[100px] rounded-full pointer-events-none" />
-          <div className="relative flex flex-col items-center gap-4">
-            <h2 className="text-2xl md:text-[32px] font-bold max-w-xl leading-tight">
-              Sua banca, suas regras. Nosso histórico, público.
-            </h2>
-            <p className="text-text2 text-[15px] max-w-md">
-              Criar conta é grátis e leva menos de um minuto — você só paga quando decidir
-              liberar os eventos completos.
-            </p>
-            <Link href="/cadastro" className="btn-primary text-[15px] px-8 py-4 mt-1">
-              Criar conta grátis agora
-            </Link>
+      <section className="relative px-5 md:px-10 py-24 max-w-7xl mx-auto">
+        <Reveal>
+          <div className="card glow-border relative overflow-hidden px-7 py-16 md:p-20 text-center flex flex-col items-center !bg-[rgba(10,16,40,.8)]">
+            {/* anéis orbitais em CSS 3D */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ perspective: "900px" }}>
+              {[340, 520, 720].map((s, i) => (
+                <div
+                  key={s}
+                  className="absolute rounded-full border border-primary/20"
+                  style={{
+                    width: s,
+                    height: s,
+                    transform: `rotateX(72deg)`,
+                    boxShadow: "0 0 40px rgba(79,123,255,.15) inset",
+                    animation: `nx-spin-${i % 2 ? "b" : "a"} ${18 + i * 8}s linear infinite`,
+                  }}
+                />
+              ))}
+              <div className="w-[380px] h-[380px] rounded-full bg-primary/20 blur-[100px]" />
+            </div>
+            <div className="relative flex flex-col items-center gap-5">
+              <h2 className="font-display text-[34px] md:text-[56px] font-semibold max-w-3xl leading-[1.02] tracking-[-0.035em]">
+                Sua banca, suas regras.
+                <br />
+                <span className="text-gradient">Nosso histórico, público.</span>
+              </h2>
+              <p className="text-text2 text-[15px] md:text-base max-w-md">
+                Criar conta é grátis e leva menos de um minuto — você só paga quando decidir liberar os eventos completos.
+              </p>
+              <Magnetic>
+                <Link href="/cadastro" className="btn-primary group text-[15px] px-9 py-4 mt-2 inline-flex items-center gap-2">
+                  Criar conta grátis agora
+                  <Arrow />
+                </Link>
+              </Magnetic>
+            </div>
           </div>
-        </div>
-      </div>
+        </Reveal>
+      </section>
 
       {/* FOOTER */}
-      <div className="border-t border-border px-6 md:px-16 py-7">
-        <div className="text-muted text-sm">Nexus Tips — Inteligência esportiva.</div>
-      </div>
+      <footer className="border-t border-white/[0.06] px-5 md:px-10 py-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <Logo size={24} />
+          <div className="text-muted text-[13px]">Nexus Tips — Inteligência esportiva. Não vendemos certeza.</div>
+          <div className="flex gap-5 text-[13px] text-text2">
+            <Link href="/login" className="hover:text-text">Entrar</Link>
+            <Link href="/cadastro" className="hover:text-text">Criar conta</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

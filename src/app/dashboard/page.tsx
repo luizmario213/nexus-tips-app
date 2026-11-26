@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { temAcessoLiberado } from "@/lib/access";
+import type { Signal } from "@/lib/types";
+import type { SinalEncerrado } from "@/lib/insights";
+import { SimuladorESe } from "@/components/SimuladorESe";
+import { Greeting, NextSignalTile, PctRing } from "@/components/HomeWidgets";
 
 const ICON_BOLT = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -32,7 +36,7 @@ const ICON_CARD = (
   </svg>
 );
 const ICON_LOCK = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#66758A" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#69759A" strokeWidth="2">
     <rect x="5" y="11" width="14" height="9" rx="2" />
     <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
   </svg>
@@ -59,7 +63,7 @@ export default async function VisaoGeralPage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("profiles").select("role").eq("id", user.id).single(),
+    supabase.from("profiles").select("role, name, banca_inicial").eq("id", user.id).single(),
   ]);
   // Conta admin tem acesso liberado mesmo sem assinatura — ver src/lib/access.ts.
   const subscribed = temAcessoLiberado(profile?.role, !!activeSub);
@@ -155,413 +159,228 @@ export default async function VisaoGeralPage() {
     else break;
   }
 
+  // Sinais no ar (pro bloco "Próximo sinal") e todo o histórico encerrado (pro simulador).
+  const [{ data: noAr }, { data: encerrados }] = await Promise.all([
+    supabase.from("signals").select("*").eq("status", "no_ar"),
+    supabase.from("signals").select("id, status, odd, mercado, competicao, created_at").in("status", ["green", "red"]),
+  ]);
+  const agora = Date.now();
+  const proximo =
+    ((noAr as Signal[]) || [])
+      .slice()
+      .sort((a, b) => {
+        const ta = a.horario_jogo ? new Date(a.horario_jogo).getTime() : Infinity;
+        const tb = b.horario_jogo ? new Date(b.horario_jogo).getTime() : Infinity;
+        // ao vivo (já começou) primeiro, depois o mais próximo de começar
+        const pa = ta <= agora || a.live ? 0 : 1;
+        const pb = tb <= agora || b.live ? 0 : 1;
+        return pa - pb || ta - tb;
+      })[0] || null;
+
+  const nome = (profile as { name?: string } | null)?.name || user.email || "você";
+  const bancaInicial = Number((profile as { banca_inicial?: number } | null)?.banca_inicial) || 1000;
+
   const acoes = [
-    {
-      href: "/dashboard/eventos",
-      icon: ICON_BOLT,
-      label: "Eventos",
-      hint: "Sinais monitorados agora",
-      locked: false,
-    },
-    {
-      href: subscribed ? "/dashboard/gestao" : "/dashboard/planos",
-      icon: ICON_WALLET,
-      label: "Gestão",
-      hint: subscribed ? "Sua banca e resultado" : "Assine para liberar",
-      locked: !subscribed,
-    },
-    {
-      href: "/dashboard/historico",
-      icon: ICON_CLOCK,
-      label: "Histórico",
-      hint: "Suas operações marcadas",
-      locked: !subscribed,
-    },
-    {
-      href: "/dashboard/suporte",
-      icon: ICON_HEADSET,
-      label: "Suporte",
-      hint: "Central de ajuda",
-      locked: false,
-    },
+    { href: "/dashboard/eventos", icon: ICON_BOLT, label: "Sala ao Vivo", hint: "Sinais no ar agora", locked: !subscribed },
+    { href: subscribed ? "/dashboard/gestao" : "/dashboard/planos", icon: ICON_WALLET, label: "Gestão", hint: "Sua banca e resultado", locked: !subscribed },
+    { href: "/dashboard/historico", icon: ICON_CLOCK, label: "Histórico", hint: "Suas operações", locked: !subscribed },
+    { href: "/dashboard/suporte", icon: ICON_HEADSET, label: "Suporte", hint: "Fale com a equipe", locked: false },
   ];
 
+  const tile = "card p-5 md:p-6";
+
   return (
-    <div className="flex flex-col max-w-5xl">
-      {/* Ticker ao vivo — faixa contínua sem moldura, tipo fita de cotações. */}
+    <div className="flex flex-col max-w-6xl gap-4">
+      {/* Ticker ao vivo */}
       {ticker && ticker.length > 0 && (
-        <div className="border-y border-border py-2.5 overflow-hidden mb-6">
-          <div className="overflow-hidden">
-            <div className="marquee-track flex items-center gap-8 whitespace-nowrap w-max">
-              {[...ticker, ...ticker].map((s, i) => (
-                <span key={`${s.id}-${i}`} className="flex items-center gap-2 text-[11px] font-mono flex-none">
-                  {s.status === "green" ? (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="3" className="flex-none">
-                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F0445E" strokeWidth="3" className="flex-none">
-                      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-                    </svg>
-                  )}
-                  <span className="text-text2 font-semibold">
-                    {s.tipo === "bilhete" ? s.time_b : `${s.time_a} x ${s.time_b}`}
-                  </span>
-                  <span className={`font-bold ${s.status === "green" ? "text-success" : "text-danger"}`}>
-                    {s.status === "green" ? "GREEN" : "RED"}
-                  </span>
-                </span>
-              ))}
-            </div>
+        <div className="border-y border-white/[0.06] bg-white/[0.015] py-3 overflow-hidden mb-2 rounded-xl [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
+          <div className="marquee-track flex items-center gap-8 whitespace-nowrap w-max">
+            {[...ticker, ...ticker].map((s, i) => (
+              <span key={`${s.id}-${i}`} className="flex items-center gap-2 text-[11px] font-mono flex-none">
+                <span className={`w-1.5 h-1.5 rounded-full ${s.status === "green" ? "bg-success shadow-[0_0_8px_#14E3A0]" : "bg-danger shadow-[0_0_8px_#FF4D6D]"}`} />
+                <span className="text-text2 font-semibold">{s.tipo === "bilhete" ? s.time_b : `${s.time_a} x ${s.time_b}`}</span>
+                <span className={`font-bold ${s.status === "green" ? "text-success" : "text-danger"}`}>{s.status === "green" ? "GREEN" : "RED"}</span>
+              </span>
+            ))}
           </div>
         </div>
       )}
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" />
-            <rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
-          <span className="text-xs font-bold tracking-wide text-primary">VISÃO GERAL</span>
-        </div>
-        <h1 className="text-2xl font-bold mb-1">Sua operação em um lugar só</h1>
-        <p className="text-text2 text-sm">Assinatura, operações em andamento e resultado, de relance.</p>
-      </div>
-
-      {/* HERO: dois painéis lado a lado, tipo terminal — número grande é o único foco real. */}
-      <div className="card relative overflow-hidden rounded-lg p-0 mb-8">
-        <div
-          className="absolute inset-0 opacity-[0.05] pointer-events-none"
-          style={{
-            backgroundImage: "radial-gradient(#8FA2BE 1px, transparent 1px)",
-            backgroundSize: "16px 16px",
-          }}
-        />
-        <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
-          {/* PAINEL ESQUERDO — status + ações */}
-          <div className="p-6 lg:border-r border-b lg:border-b-0 border-border flex flex-col justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 font-mono text-[10.5px] text-muted tracking-wider mb-3">
-                <span className={`w-1.5 h-1.5 flex-none ${subscribed ? "bg-success animate-pulse" : "bg-muted"}`} />
-                STATUS DA CONTA
-              </div>
-              <div className="text-base font-bold">
-                {activeSub
-                  ? `Assinatura ativa — ${activeSub.plano}`
-                  : subscribed
-                  ? "Acesso liberado — conta admin"
-                  : "Assinatura inativa"}
-              </div>
-              <div className="text-xs text-text2 mt-1.5 leading-relaxed max-w-xs">
-                {subscribed
-                  ? "Eventos e marcação de operações liberados."
-                  : "Assine um plano para liberar os eventos monitorados."}
-              </div>
-
-              {activeSub ? (
-                <div className="flex flex-col gap-1.5 mt-5 pt-4 border-t border-border font-mono text-[11px]">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted">ATIVA DESDE</span>
-                    <span className="font-semibold">
-                      {new Date(activeSub.created_at).toLocaleDateString("pt-BR")}
-                    </span>
-                  </div>
-                  {activeSub.current_period_end && (
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-muted">RENOVA EM</span>
-                      <span className="font-semibold">
-                        {new Date(activeSub.current_period_end).toLocaleDateString("pt-BR")}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted">VALOR</span>
-                    <span className="font-semibold">
-                      R$ {activeSub.valor.toFixed(2)}
-                      <span className="text-muted">
-                        /{activeSub.plano === "mensal" ? "mês" : activeSub.plano === "semestral" ? "6m" : "ano"}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                !subscribed && (
-                  <div className="flex flex-col gap-2 mt-5 pt-4 border-t border-border">
-                    {["Eventos ao vivo liberados", "Gestão automática da banca", "Histórico e resultados completos"].map(
-                      (b) => (
-                        <div key={b} className="flex items-center gap-2 text-xs text-text2">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="2.5" className="flex-none">
-                            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          {b}
-                        </div>
-                      )
-                    )}
-                  </div>
-                )
-              )}
-            </div>
-
-            <div className="flex flex-col xs:flex-row gap-2">
-              <Link
-                href="/dashboard/eventos"
-                className="btn-outline flex items-center justify-center gap-1.5 text-xs px-4 py-2.5 whitespace-nowrap"
-              >
-                Ir para Eventos
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-              <Link
-                href="/dashboard/planos"
-                className={
-                  activeSub
-                    ? "btn-outline text-xs px-4 py-2.5 whitespace-nowrap text-center"
-                    : "btn-primary text-xs px-4 py-2.5 whitespace-nowrap text-center"
-                }
-              >
-                {activeSub ? "Gerenciar assinatura" : "Ver planos"}
-              </Link>
-            </div>
+      {/* BENTO */}
+      <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4">
+        {/* Saudação + conta */}
+        <div className={`${tile} md:col-span-6 lg:col-span-5 relative overflow-hidden flex flex-col justify-between gap-6`}>
+          <div className="absolute -top-20 -left-16 w-72 h-72 rounded-full bg-primary/20 blur-[90px] pointer-events-none" />
+          <div className="relative">
+            <span className="text-[10px] font-bold tracking-[0.2em] text-text2">VISÃO GERAL</span>
+            <h1 className="font-display text-[30px] md:text-[38px] font-semibold tracking-[-0.035em] leading-[1.05] mt-3">
+              <Greeting name={nome} />
+            </h1>
+            <p className="text-sm text-text2 mt-2">
+              {subscribed
+                ? operations.length
+                  ? `Você tem ${operations.length} ${operations.length === 1 ? "operação rolando" : "operações rolando"} agora.`
+                  : "Nenhuma operação aberta — a sala está te esperando."
+                : "Você está na conta gratuita. O placar é público; a análise é pra assinantes."}
+            </p>
           </div>
-
-          {/* PAINEL DIREITO — resultado. Um número gigante como foco único, o resto vira
-              texto corrido separado por traços verticais finos, sem virar grade de cards. */}
-          <div className="p-6 flex flex-col gap-5">
-            <span className="font-mono text-[10.5px] text-muted tracking-wider">RESULTADO · JANELA DE 30 DIAS</span>
-
-            <div className="flex flex-wrap items-end gap-x-0 gap-y-4">
-              <div className="pr-6">
-                <div className="font-mono text-[56px] leading-none font-bold text-success tracking-tight">
-                  {assertividadePlataforma === null ? "—" : `${assertividadePlataforma}%`}
-                </div>
-                <div className="text-[10px] text-muted mt-2 tracking-wide font-semibold">ASSERTIVIDADE NEXUS</div>
-              </div>
-              {subscribed ? (
-                <>
-                  <div className="border-l border-border pl-6 pr-6">
-                    <div className="font-mono text-xl font-semibold">
-                      {minhaAssertividade === null ? "—" : `${minhaAssertividade}%`}
-                    </div>
-                    <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">SUA ASSERTIVIDADE</div>
-                  </div>
-                  <div className="border-l border-border pl-6 pr-6">
-                    <div className="font-mono text-xl font-semibold">
-                      <span className="text-success">{greens}</span>
-                      <span className="text-muted text-sm"> / </span>
-                      <span className="text-danger">{reds}</span>
-                    </div>
-                    <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">GREENS / REDS</div>
-                  </div>
-                  {userStreak > 1 && (
-                    <div className="border-l border-border pl-6">
-                      <div className="font-mono text-xl font-semibold text-warning flex items-center gap-1.5">
-                        {userStreak}
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F5A524" stroke="none">
-                          <path d="M12 2c1 3-2 4-2 7a4 4 0 108 0c0-1-1-2-1-2 2 1 3 4 3 6a8 8 0 11-16 0c0-5 4-7 4-9 0-1 .5-1.5 1-2 1-1 2-.5 3 0z" />
-                        </svg>
-                      </div>
-                      <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">SUA SEQUÊNCIA</div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="border-l border-border pl-6 pr-6">
-                    <div className="font-mono text-xl font-semibold text-warning flex items-center gap-1.5">
-                      {platformStreak}
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#F5A524" stroke="none">
-                        <path d="M12 2c1 3-2 4-2 7a4 4 0 108 0c0-1-1-2-1-2 2 1 3 4 3 6a8 8 0 11-16 0c0-5 4-7 4-9 0-1 .5-1.5 1-2 1-1 2-.5 3 0z" />
-                      </svg>
-                    </div>
-                    <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">SEQUÊNCIA ATUAL</div>
-                  </div>
-                  <div className="border-l border-border pl-6">
-                    <div className="font-mono text-xl font-semibold">
-                      <span className="text-success">{plataformaGreens}</span>
-                      <span className="text-muted text-sm"> / </span>
-                      <span className="text-danger">{plataformaTotal - plataformaGreens}</span>
-                    </div>
-                    <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">GREENS / REDS · 30D</div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {!subscribed && (
-              <Link
-                href="/dashboard/planos"
-                className="flex items-center justify-between gap-3 bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 hover:bg-primary/15 transition-colors -mt-1"
-              >
-                <span className="text-xs font-semibold text-text">
-                  Isso é só o placar. Assine pra ver a análise por trás de cada sinal.
-                </span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="flex-none text-primary">
-                  <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-            )}
-
-            {/* Trilha de 7 dias — volume de sinais encerrados na plataforma, green/red empilhado */}
-            <div className="flex flex-col gap-1.5 pt-4 mt-1 border-t border-border">
-              <span className="text-[10px] font-semibold text-muted tracking-wide">SINAIS ENCERRADOS · 7D</span>
-              <div className="flex items-end gap-1.5 h-10">
-                {trend.map((t, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1 w-5">
-                    <div className="w-full flex flex-col justify-end h-8 rounded-sm overflow-hidden bg-elevated">
-                      {t.total > 0 && (
-                        <div style={{ height: `${Math.max(12, (t.total / trendMax) * 100)}%` }} className="w-full flex flex-col justify-end">
-                          {t.red > 0 && (
-                            <div
-                              className="w-full bg-danger/70"
-                              style={{ height: `${(t.red / t.total) * 100}%` }}
-                            />
-                          )}
-                          {t.green > 0 && (
-                            <div
-                              className="w-full bg-success"
-                              style={{ height: `${(t.green / t.total) * 100}%` }}
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[8.5px] font-semibold text-muted uppercase">{t.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="relative flex items-center justify-between gap-3 flex-wrap">
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10.5px] font-bold tracking-wider ${
+                subscribed ? "border-success/40 bg-success/10 text-success" : "border-white/10 bg-white/[0.04] text-text2"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${subscribed ? "bg-success animate-pulse" : "bg-muted"}`} />
+              {activeSub ? `PLANO ${String(activeSub.plano).toUpperCase()} ATIVO` : subscribed ? "ACESSO LIBERADO · ADMIN" : "CONTA GRATUITA"}
+            </span>
+            <Link href="/dashboard/planos" className={`${activeSub || subscribed ? "btn-ghost" : "btn-primary"} text-xs px-4 py-2.5`}>
+              {activeSub ? "Gerenciar plano" : subscribed ? "Ver planos" : "Liberar tudo"}
+            </Link>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUNA PRINCIPAL */}
-        <div className="lg:col-span-2 flex flex-col gap-8">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-text2">OPERAÇÕES EM ANDAMENTO ({operations.length})</div>
-              {operations.length > 0 && (
-                <span className="flex items-center gap-1.5 text-[10px] font-bold text-info">
-                  <span className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
-                  AO VIVO
-                </span>
-              )}
-            </div>
-            {operations.length > 0 ? (
-              <div className="card divide-y divide-border overflow-hidden">
-                {operations.map((op: any) => (
-                  <div key={op.id} className="flex items-center gap-3 px-4 py-3.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-info flex-none animate-pulse" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold flex items-center gap-1.5 flex-wrap">
-                        {op.signals.tipo === "bilhete" && (
-                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex-none">
-                            BILHETE
-                          </span>
-                        )}
-                        {op.signals.tipo === "bilhete"
-                          ? op.signals.time_b
-                          : `${op.signals.time_a} x ${op.signals.time_b}`}
-                      </div>
-                      <div className="text-xs text-text2 mt-0.5">
-                        {op.signals.tipo === "bilhete" ? "Combinados" : op.signals.mercado}
-                      </div>
-                    </div>
-                    <div className="text-right flex-none">
-                      <div className="text-[10px] text-muted">
-                        ODD {op.odd_obtida ?? op.signals.odd} · R$ {op.valor}
-                      </div>
-                      <div className="font-mono text-sm font-semibold text-info mt-0.5">
-                        R$ {((op.odd_obtida ?? op.signals.odd) * op.valor).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="card p-7 text-center text-sm text-text2">
-                Nenhuma operação em andamento agora. Marque um sinal em Eventos para começar.
-              </div>
-            )}
+        {/* Próximo sinal */}
+        <div className={`${tile} md:col-span-6 lg:col-span-7 glow-border relative overflow-hidden !bg-[rgba(12,18,44,.72)]`}>
+          <div className="absolute -bottom-24 -right-16 w-80 h-80 rounded-full bg-accent/20 blur-[90px] pointer-events-none" />
+          <div className="relative h-full">
+            <NextSignalTile signal={proximo} total={(noAr || []).length} subscribed={subscribed} />
           </div>
+        </div>
 
-          {subscribed && (
-            <div>
-              <div className="text-sm font-bold text-text2 mb-3">ATIVIDADE RECENTE</div>
-              {recentes.length > 0 ? (
-                <div className="card divide-y divide-border overflow-hidden">
-                  {recentes.map((op: any) => {
-                    const isGreen = op.status === "green";
-                    const isCancelada = op.status === "cancelada";
-                    const dotColor = isCancelada ? "bg-muted" : isGreen ? "bg-success" : "bg-danger";
-                    const textColor = isCancelada ? "text-muted" : isGreen ? "text-success" : "text-danger";
-                    return (
-                      <div key={op.id} className="flex items-center gap-3 px-4 py-3">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-none ${dotColor}`} />
-                        <div className="min-w-0 flex-1 text-xs font-semibold truncate">
-                          {op.signals.tipo === "bilhete"
-                            ? op.signals.time_b
-                            : `${op.signals.time_a} x ${op.signals.time_b}`}
-                        </div>
-                        <span className={`text-[10px] font-bold tracking-wide flex-none ${textColor}`}>
-                          {op.status.toUpperCase()}
-                        </span>
-                      </div>
-                    );
-                  })}
+        {/* Assertividade Nexus */}
+        <div className={`${tile} md:col-span-3 lg:col-span-4 flex flex-col sm:flex-row lg:flex-col xl:flex-row items-start sm:items-center lg:items-start xl:items-center gap-4`}>
+          <PctRing value={assertividadePlataforma} label="30 DIAS" />
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold tracking-[0.18em] text-text2 whitespace-nowrap">ASSERTIVIDADE NEXUS</div>
+            <div className="font-mono text-lg font-semibold mt-2 whitespace-nowrap">
+              <span className="text-success">{plataformaGreens}</span>
+              <span className="text-muted text-sm"> / </span>
+              <span className="text-danger">{plataformaTotal - plataformaGreens}</span>
+            </div>
+            <div className="text-[11px] text-muted">greens / reds públicos</div>
+            {platformStreak > 1 && <div className="text-[11px] text-warning font-semibold mt-2">🔥 {platformStreak} greens seguidos</div>}
+          </div>
+        </div>
+
+        {/* Você */}
+        <div className={`${tile} md:col-span-3 lg:col-span-4 flex flex-col sm:flex-row lg:flex-col xl:flex-row items-start sm:items-center lg:items-start xl:items-center gap-4`}>
+          {subscribed ? (
+            <>
+              <PctRing value={minhaAssertividade} color="#33D6F5" label="VOCÊ" />
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold tracking-[0.18em] text-text2 whitespace-nowrap">SUAS OPERAÇÕES</div>
+                <div className="font-mono text-lg font-semibold mt-2 whitespace-nowrap">
+                  <span className="text-success">{greens}</span>
+                  <span className="text-muted text-sm"> / </span>
+                  <span className="text-danger">{reds}</span>
                 </div>
-              ) : (
-                <div className="card p-6 text-center text-xs text-text2">
-                  Suas operações encerradas aparecem aqui assim que forem confirmadas.
-                </div>
-              )}
+                <div className="text-[11px] text-muted">greens / reds marcados</div>
+                {userStreak > 1 && <div className="text-[11px] text-warning font-semibold mt-2">🔥 sequência de {userStreak}</div>}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="text-[10px] font-bold tracking-[0.18em] text-text2">SEU RESULTADO</div>
+              <p className="text-sm text-text2">Assine e marque suas operações pra acompanhar sua própria assertividade aqui.</p>
+              <Link href="/dashboard/planos" className="btn-outline text-xs px-4 py-2 w-fit">Ver planos</Link>
             </div>
           )}
         </div>
 
-        {/* COLUNA LATERAL */}
-        <div className="flex flex-col gap-8">
-          <div>
-            <div className="text-sm font-bold text-text2 mb-3">AÇÕES RÁPIDAS</div>
-            <div className="card divide-y divide-border overflow-hidden">
-              {acoes.map((a) => (
-                <Link
-                  key={a.label}
-                  href={a.href}
-                  className="flex items-center gap-3 px-4 py-3.5 hover:bg-elevated/50 transition-colors"
-                >
-                  <span className="text-primary flex-none">{a.icon}</span>
+        {/* Semana */}
+        <div className={`${tile} md:col-span-6 lg:col-span-4 flex flex-col gap-3`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold tracking-[0.18em] text-text2">SINAIS ENCERRADOS · 7D</span>
+            <span className="text-[10px] text-muted">{trend.reduce((a, t) => a + t.total, 0)} no total</span>
+          </div>
+          <div className="flex items-end gap-2 h-24 mt-auto">
+            {trend.map((t, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full">
+                <div className="w-full flex-1 flex flex-col justify-end rounded-md overflow-hidden bg-white/[0.04]">
+                  {t.total > 0 && (
+                    <div style={{ height: `${Math.max(10, (t.total / trendMax) * 100)}%` }} className="w-full flex flex-col justify-end">
+                      {t.red > 0 && <div className="w-full bg-danger/70" style={{ height: `${(t.red / t.total) * 100}%` }} />}
+                      {t.green > 0 && <div className="w-full bg-gradient-to-t from-success/70 to-success" style={{ height: `${(t.green / t.total) * 100}%` }} />}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[9px] font-semibold text-muted uppercase">{t.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Operações em andamento */}
+        <div className={`${tile} md:col-span-6 lg:col-span-8 !p-0 overflow-hidden`}>
+          <div className="flex items-center justify-between px-5 md:px-6 pt-5 pb-3">
+            <span className="text-[10px] font-bold tracking-[0.18em] text-text2">OPERAÇÕES EM ANDAMENTO · {operations.length}</span>
+            {operations.length > 0 && (
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-info">
+                <span className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" /> AO VIVO
+              </span>
+            )}
+          </div>
+          {operations.length > 0 ? (
+            <div className="divide-y divide-white/[0.05]">
+              {operations.slice(0, 5).map((op: any) => (
+                <div key={op.id} className="flex items-center gap-3 px-5 md:px-6 py-3.5 hover:bg-white/[0.02] transition-colors">
+                  <span className="w-2 h-2 rounded-full bg-info flex-none animate-pulse shadow-[0_0_10px_#33D6F5]" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold">{a.label}</div>
-                    <div className="text-[10px] text-text2 mt-0.5 leading-tight">{a.hint}</div>
+                    <div className="text-[13.5px] font-semibold truncate">
+                      {op.signals.tipo === "bilhete" ? op.signals.time_b : `${op.signals.time_a} x ${op.signals.time_b}`}
+                    </div>
+                    <div className="text-xs text-text2 mt-0.5 truncate">{op.signals.tipo === "bilhete" ? "Combinados" : op.signals.mercado}</div>
                   </div>
-                  {a.locked ? ICON_LOCK : ICON_CHEVRON}
-                </Link>
+                  <div className="text-right flex-none">
+                    <div className="text-[10px] text-muted">
+                      @{op.odd_obtida ?? op.signals.odd} · R$ {op.valor}
+                    </div>
+                    <div className="font-mono text-sm font-semibold text-info mt-0.5">R$ {((op.odd_obtida ?? op.signals.odd) * op.valor).toFixed(2)}</div>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-
-          {subscribed && (
-            <Link
-              href="/dashboard/gestao"
-              className="flex items-center justify-between gap-3 border border-border rounded-lg px-4 py-3.5 hover:border-primary/40 transition-colors"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="text-primary flex-none">{ICON_CARD}</span>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold">Suas conquistas</div>
-                  <div className="text-[10px] text-text2 mt-0.5 leading-tight">
-                    Sequência de greens, banca e resultado
-                  </div>
-                </div>
-              </div>
-              {ICON_CHEVRON}
-            </Link>
+          ) : (
+            <div className="px-6 pb-6 text-sm text-text2">Nenhuma operação em andamento. Marque um sinal na Sala ao Vivo pra começar.</div>
           )}
+        </div>
+
+        {/* Atalhos + recentes */}
+        <div className={`${tile} md:col-span-6 lg:col-span-4 !p-0 overflow-hidden flex flex-col`}>
+          <div className="px-5 pt-5 pb-2 text-[10px] font-bold tracking-[0.18em] text-text2">ATALHOS</div>
+          <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+            {acoes.map((a) => (
+              <Link
+                key={a.label}
+                href={a.locked ? "/dashboard/planos" : a.href}
+                className="group relative rounded-xl border border-white/[0.06] bg-white/[0.025] hover:bg-white/[0.06] hover:border-primary/30 p-3 transition-all"
+              >
+                <span className="text-info flex-none">{a.icon}</span>
+                <div className="text-[12.5px] font-semibold mt-2">{a.label}</div>
+                <div className="text-[10.5px] text-muted leading-tight mt-0.5">{a.hint}</div>
+                {a.locked && <span className="absolute top-3 right-3">{ICON_LOCK}</span>}
+              </Link>
+            ))}
+          </div>
+          {subscribed && recentes.length > 0 && (
+            <div className="border-t border-white/[0.06] px-5 py-3 flex flex-col gap-2 mt-auto">
+              <span className="text-[10px] font-bold tracking-[0.18em] text-text2">ÚLTIMOS RESULTADOS</span>
+              {recentes.map((op: any) => (
+                <div key={op.id} className="flex items-center gap-2 text-xs">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-none ${op.status === "green" ? "bg-success" : op.status === "red" ? "bg-danger" : "bg-muted"}`} />
+                  <span className="truncate flex-1 text-text2">{op.signals.tipo === "bilhete" ? op.signals.time_b : `${op.signals.time_a} x ${op.signals.time_b}`}</span>
+                  <span className={`text-[10px] font-bold ${op.status === "green" ? "text-success" : op.status === "red" ? "text-danger" : "text-muted"}`}>
+                    {String(op.status).toUpperCase()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Simulador */}
+        <div className="md:col-span-6 lg:col-span-12">
+          <SimuladorESe encerrados={(encerrados as SinalEncerrado[]) || []} bancaPadrao={bancaInicial} subscribed={subscribed} />
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { AmbientBackground } from "@/components/fx";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Logo } from "@/components/Logo";
@@ -25,14 +27,16 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
-    <div className="min-h-screen flex bg-bg text-text">
+    <div className="min-h-screen flex bg-bg text-text relative">
+      <AmbientBackground variant="app" />
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
           aria-hidden
-          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-fade-up"
         />
       )}
 
@@ -45,9 +49,9 @@ export function DashboardShell({
         onClose={() => setMobileOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="relative z-10 flex-1 flex flex-col min-w-0">
         {/* Barra mobile — some no desktop (md:hidden). Substitui o header de PC de baixo. */}
-        <div className="h-14 flex-none flex items-center justify-between px-4 border-b border-border md:hidden">
+        <div className="sticky top-0 z-30 h-14 flex-none flex items-center justify-between px-4 border-b border-white/[0.06] bg-[rgba(4,7,18,.7)] backdrop-blur-xl md:hidden">
           <button
             onClick={() => setMobileOpen(true)}
             aria-label="Abrir menu"
@@ -62,12 +66,38 @@ export function DashboardShell({
         </div>
 
         {/* Header de desktop — some no mobile (hidden, md:flex). */}
-        <div className="h-16 flex-none hidden md:flex items-center justify-end px-8 border-b border-border bg-gradient-to-r from-transparent to-bg2/40">
+        <div className="sticky top-0 z-30 h-16 flex-none hidden md:flex items-center justify-between px-8 border-b border-white/[0.06] bg-[rgba(4,7,18,.55)] backdrop-blur-xl">
+          <LiveClock />
           <AccountMenu name={name} email={email} subscribed={subscribed} />
         </div>
 
-        <div className="flex-1 overflow-auto p-4 md:p-8 min-w-0">{children}</div>
+        <div key={pathname} className="page-enter flex-1 p-4 md:p-8 min-w-0">{children}</div>
       </div>
+    </div>
+  );
+}
+
+// Relógio "ao vivo" no header — reforça a sensação de painel em tempo real.
+function LiveClock() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex items-center gap-3 text-[12px] text-text2">
+      <span className="inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-success">
+        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse shadow-[0_0_8px_#14E3A0]" />
+        AO VIVO
+      </span>
+      <span className="font-mono tabular-nums text-muted">
+        {now
+          ? now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" }) +
+            " · " +
+            now.toLocaleTimeString("pt-BR")
+          : ""}
+      </span>
     </div>
   );
 }

@@ -109,8 +109,8 @@ export default function AdminAssinaturasPage() {
   return (
     <div className="flex flex-col gap-8 max-w-5xl">
       <div>
-        <span className="text-xs font-bold tracking-wide text-primary">ADMIN</span>
-        <h1 className="text-2xl font-bold mt-2 mb-1">Financeiro</h1>
+        <span className="eyebrow !text-accent !border-accent/30 !bg-accent/10"><span className="eyebrow-dot !bg-accent !shadow-[0_0_12px_#9B6BFF]" />Admin</span>
+        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mt-2 mb-1">Financeiro</h1>
         <p className="text-text2 text-sm">Assinatura, ativação, renovação e cancelamento — de cada real que entra.</p>
       </div>
 

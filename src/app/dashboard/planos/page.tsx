@@ -109,14 +109,14 @@ export default function PlanosPage() {
     <div className="flex flex-col gap-6 max-w-4xl">
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4F7BFF" strokeWidth="2">
             <rect x="2" y="5" width="20" height="14" rx="2.5" />
           </svg>
-          <span className="text-xs font-bold tracking-wide text-primary">
+          <span className="text-[11px] font-bold tracking-[0.18em] text-info">
             {activeSub ? "ASSINATURA" : "PLANOS"}
           </span>
         </div>
-        <h1 className="text-2xl font-bold mb-1">{activeSub ? "Plano ativo" : "Assine e libere tudo"}</h1>
+        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mb-1">{activeSub ? "Plano ativo" : "Assine e libere tudo"}</h1>
         <p className="text-text2 text-sm">
           {activeSub
             ? "Gerencie sua assinatura Nexus Tips."
@@ -150,7 +150,7 @@ export default function PlanosPage() {
           <div className="relative flex flex-col gap-2 mt-5 pt-5 border-t border-border">
             {BENEFICIOS_ATIVOS.map((b) => (
               <div key={b} className="flex items-center gap-2 text-xs text-text2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="2.5" className="flex-none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5" className="flex-none">
                   <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 {b}
@@ -183,7 +183,7 @@ export default function PlanosPage() {
                 <div
                   key={key}
                   className={`card relative p-6 flex flex-col gap-4 ${
-                    destaque ? "border-primary/50 shadow-[0_0_0_1px_rgba(37,99,235,0.25)]" : ""
+                    destaque ? "border-primary/50 shadow-[0_0_0_1px_rgba(79,123,255,0.35)]" : ""
                   }`}
                 >
                   {destaque && (
@@ -217,7 +217,7 @@ export default function PlanosPage() {
                   <div className="flex flex-col gap-2 pt-3 border-t border-border">
                     {PLANO_FEATURES[key].map((f) => (
                       <div key={f} className="flex items-center gap-2 text-xs text-text2">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="2.5" className="flex-none">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5" className="flex-none">
                           <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         {f}
@@ -242,7 +242,7 @@ export default function PlanosPage() {
           <div className="card p-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9AA8BC" strokeWidth="1.8">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A4B0D0" strokeWidth="1.8">
                   <rect x="5" y="11" width="14" height="9" rx="2" />
                   <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
                 </svg>
@@ -254,7 +254,7 @@ export default function PlanosPage() {
             <div className="hidden sm:block w-px h-8 bg-border" />
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-elevated border border-border flex-none flex items-center justify-center">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9AA8BC" strokeWidth="1.8">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A4B0D0" strokeWidth="1.8">
                   <path d="M5 12h14M5 12l4-4M5 12l4 4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>

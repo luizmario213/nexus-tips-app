@@ -140,7 +140,7 @@ function LucroAcumuladoChart({ points }: { points: { label: string; value: numbe
   const yPct = (v: number) => padPct + plotPct - ((v - min) / range) * plotPct;
   const zeroYPct = yPct(0);
   const last = values[values.length - 1];
-  const color = last >= 0 ? "#16C784" : "#F0445E";
+  const color = last >= 0 ? "#14E3A0" : "#FF4D6D";
 
   const lineStr = points.map((p, i) => `${xPct(i)},${yPct(p.value)}`).join(" ");
   const areaStr = `${xPct(0)},${yPct(0)} ${lineStr} ${xPct(points.length - 1)},${yPct(0)}`;
@@ -172,7 +172,7 @@ function LucroAcumuladoChart({ points }: { points: { label: string; value: numbe
             y1={g * 100}
             x2="100"
             y2={g * 100}
-            stroke="#1C2940"
+            stroke="#1B2547"
             strokeWidth="0.6"
             vectorEffect="non-scaling-stroke"
           />
@@ -184,7 +184,7 @@ function LucroAcumuladoChart({ points }: { points: { label: string; value: numbe
             y1={zeroYPct}
             x2="100"
             y2={zeroYPct}
-            stroke="#66758A"
+            stroke="#69759A"
             strokeWidth="0.7"
             strokeDasharray="1.4 1.2"
             vectorEffect="non-scaling-stroke"
@@ -205,7 +205,7 @@ function LucroAcumuladoChart({ points }: { points: { label: string; value: numbe
             y1="2"
             x2={xPct(hover)}
             y2="98"
-            stroke="#2563EB"
+            stroke="#4F7BFF"
             strokeWidth="0.7"
             strokeDasharray="1.4 1.2"
             opacity="0.7"
@@ -222,7 +222,7 @@ function LucroAcumuladoChart({ points }: { points: { label: string; value: numbe
               top: `${yPct(points[hover].value)}%`,
               transform: "translate(-50%, -50%)",
               background: color,
-              borderColor: "#0D1728",
+              borderColor: "#0A1022",
             }}
           />
           <div
@@ -423,6 +423,48 @@ export default function GestaoPage() {
 
   const deltaBanca = saldoAtual - (bancaInicial ?? 0);
 
+  // ---------------- COCKPIT: métricas de gestão calculadas das próprias operações ----
+  const cockpit = (() => {
+    const chron = [...settled].sort((a, b) => (a.finalizada_em || a.created_at).localeCompare(b.finalizada_em || b.created_at));
+    const apostado = chron.reduce((a, o) => a + o.valor, 0);
+    let run = 0;
+    let pico = 0;
+    let dd = 0;
+    let seq = 0;
+    let melhorSeq = 0;
+    chron.forEach((o) => {
+      run += profitOf(o);
+      pico = Math.max(pico, run);
+      dd = Math.max(dd, pico - run);
+      seq = o.status === "green" ? seq + 1 : 0;
+      melhorSeq = Math.max(melhorSeq, seq);
+    });
+    const porMercado: Record<string, { n: number; g: number; lucro: number }> = {};
+    chron.forEach((o) => {
+      const k = o.signals?.tipo === "bilhete" ? "Bilhetes" : o.signals?.mercado || "—";
+      const m = (porMercado[k] ||= { n: 0, g: 0, lucro: 0 });
+      m.n++;
+      if (o.status === "green") m.g++;
+      m.lucro += profitOf(o);
+    });
+    const mercados = Object.entries(porMercado)
+      .map(([k, v]) => ({ mercado: k, ...v, pct: Math.round((v.g / v.n) * 100) }))
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 5);
+    const entradaMedia = chron.length ? apostado / chron.length : 0;
+    return {
+      roi: apostado ? (totalProfit / apostado) * 100 : null,
+      dd,
+      ddPct: bancaInicial ? (dd / bancaInicial) * 100 : null,
+      unidade: bancaInicial ? bancaInicial / 100 : null,
+      entradaMedia,
+      entradaPct: bancaInicial ? (entradaMedia / bancaInicial) * 100 : null,
+      melhorSeq,
+      mercados,
+      maxLucroMercado: Math.max(1, ...mercados.map((m) => Math.abs(m.lucro))),
+    };
+  })();
+
   return (
     <div className="flex flex-col gap-5 max-w-5xl">
       <div>
@@ -434,9 +476,9 @@ export default function GestaoPage() {
               <circle cx="16" cy="14.5" r="1.3" fill="currentColor" stroke="none" />
             </svg>
           </span>
-          <span className="text-xs font-bold tracking-wide text-primary">GESTÃO</span>
+          <span className="text-[11px] font-bold tracking-[0.18em] text-info">GESTÃO</span>
         </div>
-        <h1 className="text-2xl font-bold mb-1">Sua banca</h1>
+        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mb-1">Cockpit da banca</h1>
         <p className="text-text2 text-sm">
           Calculado a partir da sua banca inicial, das operações que você marcou e dos
           aportes/saques que você registrar abaixo.
@@ -525,6 +567,58 @@ export default function GestaoPage() {
           </div>
         </div>
       </div>
+
+      {/* COCKPIT — instrumentos de gestão, estilo terminal */}
+      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3">
+        {[
+          { l: "ROI", v: cockpit.roi === null ? "—" : `${cockpit.roi >= 0 ? "+" : ""}${cockpit.roi.toFixed(1).replace(".", ",")}%`, c: cockpit.roi === null ? "" : cockpit.roi >= 0 ? "text-success" : "text-danger", s: "lucro ÷ total apostado" },
+          { l: "MAIOR QUEDA", v: settled.length ? `-${fmtMoney(cockpit.dd)}` : "—", c: "text-warning", s: cockpit.ddPct !== null ? `${cockpit.ddPct.toFixed(1).replace(".", ",")}% da banca` : "pico → vale" },
+          { l: "VALOR DA UNIDADE", v: cockpit.unidade === null ? "—" : fmtMoney(cockpit.unidade), c: "", s: "1% da banca inicial" },
+          { l: "ENTRADA MÉDIA", v: settled.length ? fmtMoney(cockpit.entradaMedia) : "—", c: cockpit.entradaPct !== null && cockpit.entradaPct > 5 ? "text-warning" : "", s: cockpit.entradaPct !== null ? `${cockpit.entradaPct.toFixed(1).replace(".", ",")}% da banca` : "por operação" },
+          { l: "MELHOR SEQUÊNCIA", v: `${cockpit.melhorSeq}`, c: "text-success", s: `atual: ${currentStreak} green${currentStreak === 1 ? "" : "s"}` },
+          { l: "ASSERTIVIDADE", v: assertividade === null ? "—" : `${assertividade}%`, c: "", s: `${greens}G · ${reds}R` },
+        ].map((k, i) => (
+          <div key={k.l} className="card px-4 py-3.5 animate-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+            <div className="text-[9.5px] font-bold text-muted tracking-[0.14em] whitespace-nowrap">{k.l}</div>
+            <div className={`font-display text-[20px] font-semibold mt-1 whitespace-nowrap ${k.c}`}>{k.v}</div>
+            <div className="text-[10.5px] text-muted mt-0.5">{k.s}</div>
+          </div>
+        ))}
+      </div>
+
+      {cockpit.mercados.length > 0 && (
+        <div className="card p-6">
+          <div className="flex items-end justify-between gap-3 mb-4">
+            <div>
+              <div className="text-[10.5px] font-bold tracking-[0.16em] text-primary">ONDE VOCÊ GANHA (E PERDE)</div>
+              <p className="text-[12.5px] text-text2 mt-0.5">Seu resultado por mercado — mostra onde sua gestão funciona melhor.</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            {cockpit.mercados.map((m) => (
+              <div key={m.mercado} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)_auto] items-center gap-4">
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold truncate">{m.mercado}</div>
+                  <div className="text-[11px] text-muted">
+                    {m.n} operações · {m.pct}% green
+                  </div>
+                </div>
+                <div className="relative h-2.5 rounded-full bg-white/[0.05]">
+                  <div className="absolute left-1/2 top-[-3px] bottom-[-3px] w-px bg-white/15" />
+                  <div
+                    className={`absolute top-0 bottom-0 rounded-full ${m.lucro >= 0 ? "left-1/2 bg-gradient-to-r from-success/60 to-success" : "right-1/2 bg-gradient-to-l from-danger/60 to-danger"}`}
+                    style={{ width: `${(Math.abs(m.lucro) / cockpit.maxLucroMercado) * 50}%` }}
+                  />
+                </div>
+                <div className={`font-mono text-[13px] font-semibold text-right whitespace-nowrap ${m.lucro >= 0 ? "text-success" : "text-danger"}`}>
+                  {m.lucro >= 0 ? "+" : ""}
+                  {fmtMoney(m.lucro)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card p-6">
         <div className="flex items-center gap-2 mb-4">

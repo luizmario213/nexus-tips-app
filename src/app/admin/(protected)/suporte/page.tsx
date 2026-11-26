@@ -116,8 +116,8 @@ export default function AdminSuportePage() {
     <div className="flex flex-col md:flex-row gap-6 max-w-5xl">
       <div className="w-full md:w-80 md:flex-none flex flex-col gap-4">
         <div>
-          <span className="text-xs font-bold tracking-wide text-primary">ADMIN</span>
-          <h1 className="text-xl font-bold mt-2 mb-1">Suporte</h1>
+          <span className="eyebrow !text-accent !border-accent/30 !bg-accent/10"><span className="eyebrow-dot !bg-accent !shadow-[0_0_12px_#9B6BFF]" />Admin</span>
+          <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mt-2 mb-1">Suporte</h1>
           <p className="text-text2 text-sm">
             {tickets.filter((t) => t.status === "aberto").length} chamado(s) aberto(s).
           </p>

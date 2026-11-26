@@ -1,9 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { DEMO_MODE, createDemoClient } from "./demo";
 
 // Cliente Supabase para uso em Server Components, Server Actions e Route Handlers.
 // Lê/escreve a sessão via cookies do Next.js.
-export function createClient() {
+export function createClient(): ReturnType<typeof createServerClient> {
+  if (DEMO_MODE) return createDemoClient();
   const cookieStore = cookies();
 
   return createServerClient(

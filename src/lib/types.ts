@@ -15,7 +15,19 @@ export interface Profile {
   tutorial_completo: boolean;
   ativo: boolean;
   created_at: string;
+  // ---- Fase 2 (migration 0003) ----
+  perfil_risco?: PerfilRisco | null;
+  ligas_favoritas?: string[] | null;
+  limite_diario?: number | null;
+  stop_diario?: number | null;
+  pausa_ate?: string | null;
+  pausas_usadas?: number | null;
+  regras_desde?: string | null;
+  // ---- Fase 3 (migration 0004) ----
+  ultimo_acesso?: string | null;
 }
+
+export type PerfilRisco = "conservador" | "moderado" | "arrojado";
 
 export type Plano = "mensal" | "semestral" | "anual";
 export type SubscriptionStatus = "ativa" | "cancelada" | "atrasada";
@@ -58,7 +70,19 @@ export interface Signal {
   sugestao_valor: number | null;
   published_by: string | null;
   created_at: string;
+  // ---- Raio-X do sinal (migration 0002, todos opcionais) ----
+  // Confiança atribuída pela equipe (0–100). Sem valor, o Raio-X mostra só a
+  // probabilidade implícita da odd — nunca inventa um número.
+  confianca?: number | null;
+  // "Por que pode dar errado": riscos conhecidos da entrada, escritos pelo admin.
+  riscos?: string | null;
+  // O que cada agente encontrou (chaves: jogos, stats, odds, historico, oportunidade).
+  analise_agentes?: Partial<Record<AgenteId, string>> | null;
+  // Odd no momento em que a análise começou — mostra o movimento até a publicação.
+  odd_abertura?: number | null;
 }
+
+export type AgenteId = "jogos" | "stats" | "odds" | "historico" | "oportunidade";
 
 // Um jogo dentro de um bilhete (sinal com tipo "bilhete"). Só existe quando o sinal
 // combina múltiplos jogos — um sinal "simples" não tem nenhuma linha aqui.

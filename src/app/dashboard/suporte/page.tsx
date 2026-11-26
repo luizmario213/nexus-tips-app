@@ -99,7 +99,7 @@ const CATEGORIA_COLOR: Record<Categoria, string> = {
 };
 
 const HeadsetIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4F7BFF" strokeWidth="2">
     <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 20l1-5.4A8.5 8.5 0 1 1 21 11.5z" />
   </svg>
 );
@@ -283,9 +283,9 @@ export default function SuportePage() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <HeadsetIcon />
-            <span className="text-xs font-bold tracking-wide text-primary">SUPORTE</span>
+            <span className="text-[11px] font-bold tracking-[0.18em] text-info">SUPORTE</span>
           </div>
-          <h1 className="text-2xl font-bold mb-1">
+          <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mb-1">
             {view === "faq" ? "Central de ajuda" : "Seus chamados"}
           </h1>
           <p className="text-text2 text-sm">
@@ -316,7 +316,7 @@ export default function SuportePage() {
                   height="15"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#66758A"
+                  stroke="#69759A"
                   strokeWidth="2"
                   className="absolute left-3.5 top-1/2 -translate-y-1/2"
                 >
@@ -385,7 +385,7 @@ export default function SuportePage() {
                           height="14"
                           viewBox="0 0 24 24"
                           fill="none"
-                          stroke="#66758A"
+                          stroke="#69759A"
                           strokeWidth="2.2"
                           className={`flex-none transition-transform ${aberto ? "rotate-180" : ""}`}
                         >

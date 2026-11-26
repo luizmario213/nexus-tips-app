@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PLANOS } from "@/lib/types";
 import type { Subscription, Signal, SupportTicket, Profile } from "@/lib/types";
 import { formatBRL, formatDateBR } from "@/lib/format";
+import { TiltCard } from "@/components/fx";
 
 function mrrDeAssinaturas(subs: Subscription[], adminIds: Set<string>) {
   const fatorMensal: Record<string, number> = { mensal: 1, semestral: 1 / 6, anual: 1 / 12 };
@@ -121,47 +122,44 @@ export default function AdminVisaoGeralPage() {
   return (
     <div className="flex flex-col gap-8 max-w-5xl">
       <div>
-        <span className="text-xs font-bold tracking-wide text-primary">ADMIN</span>
-        <h1 className="text-2xl font-bold mt-2 mb-1">Visão geral</h1>
+        <span className="eyebrow !text-accent !border-accent/30 !bg-accent/10"><span className="eyebrow-dot !bg-accent !shadow-[0_0_12px_#9B6BFF]" />Admin</span>
+        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mt-2 mb-1">Visão geral</h1>
         <p className="text-text2 text-sm">Atualiza sozinho conforme os eventos acontecem — sem refresh.</p>
       </div>
 
-      {/* HERO — MRR como foco único, resto em texto corrido separado por traços */}
-      <div className="card p-6">
-        <span className="font-mono text-[10.5px] text-muted tracking-wider">MRR ESTIMADO</span>
-        <div className="flex flex-wrap items-end gap-x-0 gap-y-4 mt-3">
-          <div className="pr-6">
-            <div className="font-mono text-[48px] leading-none font-bold tracking-tight">{loading ? "—" : formatBRL(mrr)}</div>
+      {/* HERO — MRR em destaque + KPIs em tiles de vidro */}
+      <TiltCard max={3} className="card glow-border p-7 md:p-8 !bg-[rgba(14,18,46,.72)] shadow-[0_40px_100px_-40px_rgba(155,107,255,.55)]">
+        <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-accent/25 blur-[90px] pointer-events-none" />
+        <div className="absolute -bottom-24 left-10 w-72 h-72 rounded-full bg-primary/20 blur-[90px] pointer-events-none" />
+        <div className="relative">
+          <span className="text-[10.5px] font-bold text-text2 tracking-[0.2em]">MRR ESTIMADO</span>
+          <div className="font-display text-[48px] md:text-[64px] leading-none font-semibold tracking-[-0.04em] mt-3 text-gradient">
+            {loading ? "—" : formatBRL(mrr)}
           </div>
-          <div className="border-l border-border pl-6 pr-6">
-            <div className="font-mono text-xl font-semibold">{loading ? "—" : assinaturasAtivas.length}</div>
-            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">ASSINANTES ATIVOS</div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-7">
+            {[
+              { v: assinaturasAtivas.length, l: "ASSINANTES ATIVOS", c: "text-success" },
+              { v: users.length, l: "USUÁRIOS CADASTRADOS", c: "" },
+              { v: sinaisNoAr.length, l: "SINAIS NO AR", c: "text-info" },
+              { v: ticketsAbertos.length, l: "TICKETS ABERTOS", c: ticketsAbertos.length > 0 ? "text-warning" : "" },
+            ].map((k) => (
+              <div key={k.l} className="rounded-2xl bg-white/[0.035] border border-white/[0.07] px-4 py-3.5 hover:bg-white/[0.06] transition-colors">
+                <div className={`font-display text-[28px] font-semibold leading-none ${k.c}`}>{loading ? "—" : k.v}</div>
+                <div className="text-[9.5px] text-muted mt-2 tracking-[0.14em] font-bold">{k.l}</div>
+              </div>
+            ))}
           </div>
-          <div className="border-l border-border pl-6 pr-6">
-            <div className="font-mono text-xl font-semibold">{loading ? "—" : users.length}</div>
-            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">USUÁRIOS CADASTRADOS</div>
-          </div>
-          <div className="border-l border-border pl-6 pr-6">
-            <div className="font-mono text-xl font-semibold">{loading ? "—" : sinaisNoAr.length}</div>
-            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">SINAIS NO AR</div>
-          </div>
-          <div className="border-l border-border pl-6">
-            <div className={`font-mono text-xl font-semibold ${ticketsAbertos.length > 0 ? "text-warning" : ""}`}>
-              {loading ? "—" : ticketsAbertos.length}
-            </div>
-            <div className="text-[10px] text-muted mt-1.5 tracking-wide font-semibold">TICKETS ABERTOS</div>
+          <div className="flex flex-wrap items-center gap-4 pt-5 mt-6 border-t border-white/[0.07] text-xs text-text2">
+            <span>
+              <span className="font-mono font-semibold text-text">{publicadosHoje}</span> sinais publicados hoje
+            </span>
+            <span className="text-muted">·</span>
+            <span>
+              <span className="font-mono font-semibold text-text">{cadastrosHoje}</span> cadastros novos hoje
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-4 pt-4 mt-4 border-t border-border text-xs text-text2">
-          <span>
-            <span className="font-mono font-semibold text-text">{publicadosHoje}</span> sinais publicados hoje
-          </span>
-          <span className="text-border">·</span>
-          <span>
-            <span className="font-mono font-semibold text-text">{cadastrosHoje}</span> cadastros novos hoje
-          </span>
-        </div>
-      </div>
+      </TiltCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div>

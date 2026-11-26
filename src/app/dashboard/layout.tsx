@@ -23,6 +23,13 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
+  // Último acesso (migration 0004) — alimenta o "risco de cancelamento" do admin.
+  // Grava no máximo a cada 30 min pra não escrever no banco a cada navegação.
+  const ultimo = profile?.ultimo_acesso ? new Date(profile.ultimo_acesso).getTime() : 0;
+  if (profile && Date.now() - ultimo > 30 * 60 * 1000) {
+    await supabase.from("profiles").update({ ultimo_acesso: new Date().toISOString() }).eq("id", user.id);
+  }
+
   const { data: activeSub } = await supabase
     .from("subscriptions")
     .select("*")

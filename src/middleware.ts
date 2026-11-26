@@ -5,6 +5,9 @@ import { NextResponse, type NextRequest } from "next/server";
 // /dashboard/* (precisa estar logado e com a conta ativa) e /admin/* (precisa estar
 // logado, ser admin, e com a conta ativa).
 export async function middleware(request: NextRequest) {
+  // Modo demonstração: sem Supabase real, todas as rotas ficam abertas com dados fictícios.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "1") return NextResponse.next();
+
   let response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(

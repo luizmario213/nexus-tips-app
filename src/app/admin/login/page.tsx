@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/Logo";
+import { NexusCore, AmbientBackground } from "@/components/fx";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -49,11 +50,17 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-5 p-10">
+    <div className="min-h-screen flex items-center justify-center bg-bg relative overflow-hidden p-5">
+      <AmbientBackground variant="admin" />
+      <NexusCore className="absolute inset-0 opacity-70" scale={1.15} particles={1800} />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(3,5,12,.55),rgba(3,5,12,.9)_70%)]" />
+      <form onSubmit={handleSubmit} className="card relative z-10 w-full max-w-[400px] flex flex-col gap-5 p-8 sm:p-10 animate-fade-up !bg-[rgba(8,12,30,.72)]">
         <div>
-          <Logo size={28} />
-          <h1 className="text-xl font-bold mt-4">Acesso administrativo</h1>
+          <div className="flex items-center justify-between">
+            <Logo size={28} />
+            <span className="text-[10px] font-bold tracking-[0.2em] text-accent border border-accent/40 bg-accent/10 rounded-full px-2.5 py-1">ADMIN</span>
+          </div>
+          <h1 className="font-display text-[26px] font-semibold tracking-tight mt-6">Acesso administrativo</h1>
           <p className="text-text2 text-sm mt-1">Restrito à equipe Nexus Tips.</p>
         </div>
 

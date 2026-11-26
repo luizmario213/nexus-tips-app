@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ShareResultButton } from "@/components/ShareResult";
 import type { Signal } from "@/lib/types";
 
 type Periodo = "todo" | "mes" | "ano";
@@ -70,12 +71,12 @@ function AssertividadeGauge({ value }: { value: number | null }) {
   const c = 2 * Math.PI * r;
   const pct = value ?? 0;
   const offset = c - (pct / 100) * c;
-  const color = value === null ? "#66758A" : pct >= 90 ? "#16C784" : pct >= 70 ? "#2563EB" : "#F5A524";
+  const color = value === null ? "#69759A" : pct >= 90 ? "#14E3A0" : pct >= 70 ? "#4F7BFF" : "#FFB547";
 
   return (
     <div className="relative flex-none" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1C2940" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1B2547" strokeWidth={stroke} />
         {value !== null && (
           <circle
             cx={size / 2}
@@ -152,7 +153,7 @@ function TendenciaMensal({
           <polyline
             points={lineStr}
             fill="none"
-            stroke="#2563EB"
+            stroke="#4F7BFF"
             strokeWidth="1.6"
             vectorEffect="non-scaling-stroke"
             strokeLinejoin="round"
@@ -169,8 +170,8 @@ function TendenciaMensal({
               transform: "translate(-50%, -50%)",
               width: hover === i ? 10 : 7,
               height: hover === i ? 10 : 7,
-              background: hover === i ? "#2563EB" : "#F4F6FA",
-              border: "2px solid #050B18",
+              background: hover === i ? "#4F7BFF" : "#F4F6FA",
+              border: "2px solid #03050C",
               transition: "width 0.12s, height 0.12s",
             }}
           />
@@ -301,9 +302,9 @@ export default function ResultadosPage() {
           <span className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-none">
             {StatIcon.shield}
           </span>
-          <span className="text-xs font-bold tracking-wide text-primary">RESULTADOS</span>
+          <span className="text-[11px] font-bold tracking-[0.18em] text-info">RESULTADOS</span>
         </div>
-        <h1 className="text-2xl font-bold mb-1">Resultados verificados</h1>
+        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mb-1">Resultados verificados</h1>
         <p className="text-text2 text-sm">
           Todo sinal encerrado conta — sem esconder red, sem número inflado. Aberto pra todo
           mundo, assinante ou não.
@@ -421,6 +422,7 @@ export default function ResultadosPage() {
                       <th className="pb-2.5 px-3">Resultado</th>
                       <th className="pb-2.5 px-3">Odd</th>
                       <th className="pb-2.5 pl-3">Abertura do evento</th>
+                      <th className="pb-2.5 pl-3"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -468,6 +470,21 @@ export default function ResultadosPage() {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
+                          </td>
+                          <td className="py-3 pl-3">
+                            <ShareResultButton
+                              compact
+                              data={{
+                                competicao: s.competicao,
+                                timeA: s.time_a,
+                                timeB: s.time_b,
+                                mercado: s.tipo === "bilhete" ? "Bilhete combinado" : s.mercado,
+                                odd: s.odd,
+                                status: s.status as "green" | "red",
+                                data: s.created_at,
+                                bilhete: s.tipo === "bilhete",
+                              }}
+                            />
                           </td>
                         </tr>
                       );

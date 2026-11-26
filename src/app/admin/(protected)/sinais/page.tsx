@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Signal, SignalLeg, SignalTipo, SugestaoTipo } from "@/lib/types";
+import { SignalXRay } from "@/components/SignalXRay";
+import { fmtOdd, probImplicita, recorte, type SinalEncerrado } from "@/lib/insights";
 
 type SignalRow = Signal & { signal_legs: SignalLeg[] };
 type StatusFiltro = "todos" | "no_ar" | "live" | "green" | "red" | "cancelado";
@@ -72,7 +74,12 @@ export default function AdminSinaisPage() {
   const [casaLink, setCasaLink] = useState("");
   const [defaultCasa, setDefaultCasa] = useState({ nome: "", link: "" });
   const [sugestaoTipo, setSugestaoTipo] = useState<SugestaoTipo | "nenhuma">("nenhuma");
+  // Raio-X (opcional): alimenta a tela de análise detalhada do usuário. Tudo que ficar
+  // vazio é substituído por dado real calculado pelo sistema — nunca por número inventado.
+  const RAIOX_VAZIO = { aberto: false, confianca: "", odd_abertura: "", riscos: "", jogos: "", stats: "", odds: "", historico: "", oportunidade: "" };
+  const [raiox, setRaiox] = useState(RAIOX_VAZIO);
   const [sugestaoValor, setSugestaoValor] = useState("");
+  const [previewXray, setPreviewXray] = useState(false);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -147,6 +154,7 @@ export default function AdminSinaisPage() {
     setCasaLink(defaultCasa.link);
     setSugestaoTipo("nenhuma");
     setSugestaoValor("");
+    setRaiox(RAIOX_VAZIO);
   }
 
   async function reloadSignals() {
@@ -173,6 +181,18 @@ export default function AdminSinaisPage() {
 
     // datetime-local vem sem timezone (horário local do navegador do admin) — new Date()
     // interpreta como horário local, igual o resto do app já faz com datas.
+    const conf = parseInt(raiox.confianca, 10);
+    const oddAb = parseFloat(raiox.odd_abertura.replace(",", "."));
+    const agentes = Object.fromEntries(
+      (["jogos", "stats", "odds", "historico", "oportunidade"] as const).filter((k) => raiox[k].trim()).map((k) => [k, raiox[k].trim()])
+    );
+    const raioxCampos = {
+      confianca: !isNaN(conf) && conf >= 0 && conf <= 100 ? conf : null,
+      odd_abertura: !isNaN(oddAb) && oddAb > 1 ? oddAb : null,
+      riscos: raiox.riscos.trim() || null,
+      analise_agentes: Object.keys(agentes).length ? agentes : null,
+    };
+
     const horarioJogoIso = form.horarioJogo ? new Date(form.horarioJogo).toISOString() : null;
 
     if (tipo === "simples") {
@@ -192,6 +212,7 @@ export default function AdminSinaisPage() {
         casa_nome: casaNome || null,
         casa_link: casaLink || null,
         ...sugestaoCampos,
+        ...raioxCampos,
         published_by: user?.id,
       });
       setPublishing(false);
@@ -228,6 +249,7 @@ export default function AdminSinaisPage() {
         casa_nome: casaNome || null,
         casa_link: casaLink || null,
         ...sugestaoCampos,
+        ...raioxCampos,
         published_by: user?.id,
       })
       .select()
@@ -301,12 +323,59 @@ export default function AdminSinaisPage() {
     return s.status === filtroStatus;
   });
 
+  // ---------- PRÉVIA AO VIVO: o sinal exatamente como o usuário vai ver ----------
+  const draftLegs: SignalLeg[] = legs
+    .filter((l) => l.time_a || l.time_b)
+    .map((l, i) => ({
+      id: `draft-leg-${i}`,
+      signal_id: "draft",
+      competicao: l.competicao || "Competição",
+      time_a: l.time_a || "Time A",
+      time_b: l.time_b || "Time B",
+      mercado: l.mercado || "Mercado",
+      odd: parseFloat(l.odd) || 1,
+      ordem: i,
+      created_at: new Date().toISOString(),
+    }));
+  const draftConf = parseInt(raiox.confianca, 10);
+  const draftOddAb = parseFloat(raiox.odd_abertura.replace(",", "."));
+  const draft: SignalRow = {
+    id: "draft",
+    competicao: tipo === "bilhete" ? bilheteTitulo || "Bilhete" : form.competicao || "Competição",
+    time_a: tipo === "bilhete" ? "Bilhete" : form.time_a || "Time A",
+    time_b: tipo === "bilhete" ? `${draftLegs.length} jogos` : form.time_b || "Time B",
+    mercado: tipo === "bilhete" ? "Múltiplos mercados" : form.mercado || "Mercado",
+    odd: tipo === "bilhete" ? Number(oddCombinada.toFixed(2)) || 1 : parseFloat(form.odd.replace(",", ".")) || 1,
+    estrategia: form.estrategia,
+    rationale: form.rationale || null,
+    status: "no_ar",
+    live: form.live,
+    horario_jogo: form.horarioJogo ? new Date(form.horarioJogo).toISOString() : null,
+    tipo,
+    casa_nome: casaNome || null,
+    casa_link: casaLink || null,
+    sugestao_tipo: sugestaoTipo === "nenhuma" ? null : sugestaoTipo,
+    sugestao_valor: parseFloat(sugestaoValor.replace(",", ".")) || null,
+    published_by: null,
+    created_at: new Date().toISOString(),
+    confianca: !isNaN(draftConf) ? Math.min(100, draftConf) : null,
+    odd_abertura: !isNaN(draftOddAb) && draftOddAb > 1 ? draftOddAb : null,
+    riscos: raiox.riscos.trim() || null,
+    analise_agentes: Object.fromEntries(
+      (["jogos", "stats", "odds", "historico", "oportunidade"] as const).filter((k) => raiox[k].trim()).map((k) => [k, raiox[k].trim()])
+    ),
+    signal_legs: draftLegs,
+  };
+  const encerrados: SinalEncerrado[] = signals.filter((x) => x.status === "green" || x.status === "red");
+  const draftMercado = recorte(encerrados, (x) => x.mercado === draft.mercado);
+  const camposRaiox = [draft.confianca != null, !!draft.odd_abertura, !!draft.riscos, Object.keys(draft.analise_agentes || {}).length > 0].filter(Boolean).length;
+
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex flex-col gap-6 max-w-6xl">
       <div>
-        <span className="text-xs font-bold tracking-wide text-primary">ADMIN</span>
-        <h1 className="text-2xl font-bold mt-2 mb-1">Sinais</h1>
-        <p className="text-text2 text-sm">Publicar aqui reflete na hora em Eventos, para todos os usuários.</p>
+        <span className="eyebrow !text-accent !border-accent/30 !bg-accent/10"><span className="eyebrow-dot !bg-accent !shadow-[0_0_12px_#9B6BFF]" />Admin</span>
+        <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mt-2 mb-1">Sinais</h1>
+        <p className="text-text2 text-sm">Publicar aqui reflete na hora na Sala ao Vivo de todos os usuários. A prévia ao lado mostra exatamente o que eles vão ver.</p>
       </div>
 
       <div className="card p-6">
@@ -334,6 +403,7 @@ export default function AdminSinaisPage() {
         </div>
       </div>
 
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
       <form onSubmit={publicar} className="card p-6 flex flex-col gap-3.5">
         <div className="flex items-center justify-between">
           <div className="text-sm font-bold">Publicar novo sinal</div>
@@ -612,10 +682,136 @@ export default function AdminSinaisPage() {
           </div>
         )}
 
+        {/* RAIO-X — campos opcionais da análise detalhada */}
+        <div className="rounded-2xl border border-info/25 bg-info/[0.04]">
+          <button
+            type="button"
+            onClick={() => setRaiox({ ...raiox, aberto: !raiox.aberto })}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span>
+              <span className="text-[12px] font-bold text-info tracking-wide">RAIO-X DO SINAL</span>
+              <span className="text-[11.5px] text-text2 ml-2">opcional — confiança, riscos e o que cada agente encontrou</span>
+            </span>
+            <span className={`text-info transition-transform ${raiox.aberto ? "rotate-180" : ""}`}>▾</span>
+          </button>
+          {raiox.aberto && (
+            <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input className="input-field" inputMode="numeric" placeholder="Confiança da equipe (0–100)" value={raiox.confianca} onChange={(e) => setRaiox({ ...raiox, confianca: e.target.value.replace(/\D/g, "").slice(0, 3) })} />
+              <input className="input-field" placeholder="Odd quando a análise começou (ex: 1,62)" value={raiox.odd_abertura} onChange={(e) => setRaiox({ ...raiox, odd_abertura: e.target.value.replace(/[^0-9.,]/g, "") })} />
+              {(
+                [
+                  ["jogos", "Agente Jogos do dia — ex: 9 jogos da Premier cruzados hoje"],
+                  ["stats", "Agente Estatísticas — ex: mandante marcou 2+ em 4 dos últimos 5"],
+                  ["odds", "Agente Odds — ex: odd subiu de 1,65 pra 1,72 em 3h"],
+                  ["historico", "Agente Histórico — ex: visitante sofreu gol em 6 dos 7 fora"],
+                  ["oportunidade", "Agente Oportunidade — ex: valor esperado +9% sobre o mercado"],
+                ] as const
+              ).map(([k, ph]) => (
+                <input key={k} className="input-field sm:col-span-2" placeholder={ph} value={raiox[k]} onChange={(e) => setRaiox({ ...raiox, [k]: e.target.value })} />
+              ))}
+              <textarea
+                className="input-field sm:col-span-2 min-h-20 resize-none"
+                placeholder="Por que pode dar errado — riscos conhecidos da entrada (aparece em destaque pro usuário)"
+                value={raiox.riscos}
+                onChange={(e) => setRaiox({ ...raiox, riscos: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+
         <button type="submit" className="btn-primary py-2.5 text-sm self-start px-6" disabled={publishing}>
           {publishing ? "Publicando…" : tipo === "bilhete" ? "Publicar bilhete" : "Publicar sinal"}
         </button>
       </form>
+
+      {/* PRÉVIA AO VIVO */}
+      <div className="xl:sticky xl:top-24 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10.5px] font-bold tracking-[0.16em] text-info">PRÉVIA · COMO O USUÁRIO VÊ</span>
+          <span className="flex items-center gap-1.5 text-[10px] text-success font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" /> ao vivo
+          </span>
+        </div>
+        <div className={`card p-5 ${draft.live ? "!border-danger/30 shadow-[0_0_50px_-20px_rgba(255,77,109,.6)]" : ""}`}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10.5px] text-muted font-semibold tracking-wider uppercase truncate">{draft.competicao}</span>
+            {draft.live ? (
+              <span className="text-[10px] font-bold text-danger border border-danger/50 bg-danger/15 rounded-full px-2.5 py-1">AO VIVO</span>
+            ) : draft.horario_jogo ? (
+              <span className="text-[10px] font-semibold text-info border border-info/40 bg-info/10 rounded-full px-2.5 py-1">
+                {new Date(draft.horario_jogo).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-info border border-info/30 bg-info/10 rounded-full px-2.5 py-1">NO AR</span>
+            )}
+          </div>
+          <div className="flex items-start justify-between gap-4 mt-3.5">
+            <div className="min-w-0">
+              {tipo === "bilhete" ? (
+                <>
+                  <div className="font-display text-[19px] font-semibold">{draftLegs.length} jogos combinados</div>
+                  {draftLegs.map((l) => (
+                    <div key={l.id} className="text-[11.5px] text-text2 truncate">
+                      {l.time_a} x {l.time_b} <span className="text-muted">· {l.mercado}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <div className="font-display text-[19px] font-semibold leading-tight">
+                    {draft.time_a} <span className="text-muted font-normal">x</span> {draft.time_b}
+                  </div>
+                  <div className="text-[13px] text-text2 mt-1">{draft.mercado}</div>
+                </>
+              )}
+            </div>
+            <div className="text-right flex-none">
+              <div className="font-mono text-[26px] font-semibold leading-none">{fmtOdd(draft.odd)}</div>
+              <div className="text-[9.5px] text-muted font-bold tracking-[0.14em] mt-1">ODD</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+              <div className="text-[9px] font-bold text-muted tracking-[0.14em]">PROB. IMPLÍCITA</div>
+              <div className="font-mono text-[13px] font-semibold mt-1">{draft.odd > 1 ? `${probImplicita(draft.odd).toFixed(0)}%` : "—"}</div>
+            </div>
+            <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+              <div className="text-[9px] font-bold text-muted tracking-[0.14em]">NEXUS NO MERCADO</div>
+              <div className="font-mono text-[13px] font-semibold mt-1">
+                {draftMercado.pct === null ? <span className="text-muted">sem histórico</span> : <span className="text-success">{draftMercado.pct}% ({draftMercado.total})</span>}
+              </div>
+            </div>
+          </div>
+          <button type="button" onClick={() => setPreviewXray(true)} className="mt-4 w-full rounded-xl font-semibold text-[12.5px] py-2.5 border border-info/40 bg-info/10 text-info hover:bg-info/20 transition-colors">
+            👁 Abrir Raio-X desta prévia
+          </button>
+        </div>
+        <div className="card px-4 py-3 text-[11.5px] text-text2 flex items-center justify-between gap-3">
+          <span>Raio-X preenchido</span>
+          <span className="flex gap-1">
+            {[0, 1, 2, 3].map((i) => (
+              <span key={i} className={`w-5 h-1.5 rounded-full ${i < camposRaiox ? "bg-info" : "bg-white/10"}`} />
+            ))}
+          </span>
+        </div>
+        {draftMercado.total >= 3 && draftMercado.pct !== null && draftMercado.pct < 55 && (
+          <div className="rounded-xl border border-warning/30 bg-warning/[0.07] px-4 py-3 text-[11.5px] text-text2">
+            ⚠ Esse mercado tem só <span className="text-warning font-semibold">{draftMercado.pct}%</span> de green no histórico ({draftMercado.total} sinais). Vale revisar antes de publicar.
+          </div>
+        )}
+      </div>
+      </div>
+
+      {previewXray && (
+        <SignalXRay
+          signal={draft}
+          encerrados={encerrados}
+          noArMesmaCompeticao={signals.filter((x) => x.status === "no_ar" && x.competicao === draft.competicao).length + 1}
+          canMark={false}
+          onClose={() => setPreviewXray(false)}
+        />
+      )}
 
       <div>
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">

@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { ShareResultButton } from "@/components/ShareResult";
 import type { Operation, Signal } from "@/lib/types";
 import { temAcessoLiberado } from "@/lib/access";
 
@@ -137,13 +138,13 @@ export default function HistoricoPage() {
   const header = (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4F7BFF" strokeWidth="2">
           <circle cx="12" cy="12" r="9" />
           <path d="M12 7v5l3.5 2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="text-xs font-bold tracking-wide text-primary">HISTÓRICO</span>
+        <span className="text-[11px] font-bold tracking-[0.18em] text-info">HISTÓRICO</span>
       </div>
-      <h1 className="text-2xl font-bold mb-1">Suas operações</h1>
+      <h1 className="font-display text-[28px] md:text-[34px] font-semibold tracking-[-0.03em] leading-tight mb-1">Suas operações</h1>
       <p className="text-text2 text-sm">
         Todas as operações que você já marcou, com o resultado de cada uma.
       </p>
@@ -165,7 +166,7 @@ export default function HistoricoPage() {
           </div>
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
             <div className="w-11 h-11 rounded-full bg-elevated border border-border flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9AA8BC" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A4B0D0" strokeWidth="2">
                 <rect x="5" y="11" width="14" height="9" rx="2" />
                 <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
               </svg>
@@ -306,13 +307,31 @@ export default function HistoricoPage() {
                           {formatData(op.finalizada_em)}
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => setExpandedId(expanded ? null : op.id)}
-                            className="flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline whitespace-nowrap"
-                          >
-                            {expanded ? "Ocultar" : "Ver detalhes"}
-                            <ChevronIcon open={expanded} />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setExpandedId(expanded ? null : op.id)}
+                              className="flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline whitespace-nowrap"
+                            >
+                              {expanded ? "Ocultar" : "Detalhes"}
+                              <ChevronIcon open={expanded} />
+                            </button>
+                            {(op.status === "green" || op.status === "red") && (
+                              <ShareResultButton
+                                compact
+                                data={{
+                                  competicao: op.signals.competicao,
+                                  timeA: op.signals.time_a,
+                                  timeB: op.signals.time_b,
+                                  mercado: isBilhete ? "Bilhete combinado" : op.signals.mercado,
+                                  odd: oddEfetiva(op),
+                                  status: op.status,
+                                  data: op.finalizada_em || op.created_at,
+                                  bilhete: isBilhete,
+                                  lucro: op.status === "green" ? op.valor * (oddEfetiva(op) - 1) : -op.valor,
+                                }}
+                              />
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {expanded && (

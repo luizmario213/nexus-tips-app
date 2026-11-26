@@ -57,7 +57,7 @@ export function AccountMenu({
         aria-label="Conta"
         aria-expanded={open}
         className={`flex items-center gap-2 rounded-full transition-colors ${
-          compact ? "" : "pl-1.5 pr-3 py-1.5 border border-border bg-elevated hover:border-primary/40"
+          compact ? "" : "pl-1.5 pr-3 py-1.5 border border-white/10 bg-white/[0.04] backdrop-blur-md hover:border-primary/50 hover:bg-white/[0.07]"
         }`}
       >
         <span
@@ -86,7 +86,7 @@ export function AccountMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 card border border-border rounded-xl shadow-2xl z-50 overflow-hidden p-0">
+        <div className="absolute right-0 top-full mt-2 w-72 card !bg-[rgba(10,15,34,.92)] shadow-2xl z-50 overflow-hidden p-0 animate-fade-up">
           <div className="p-4 border-b border-border flex items-center gap-3">
             <span className="w-10 h-10 rounded-full bg-primary/15 border border-primary/30 flex-none flex items-center justify-center font-bold text-primary text-sm">
               {ini}
@@ -118,6 +118,26 @@ export function AccountMenu({
               <path d="M2 10h20" strokeLinecap="round" />
             </svg>
             Planos de assinatura
+          </Link>
+
+          <a
+            href="/dashboard?tour=1"
+            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-text2 hover:bg-elevated hover:text-text transition-colors"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="flex-none">
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" strokeLinecap="round" />
+            </svg>
+            Refazer personalização
+          </a>
+          <Link
+            href="/dashboard/disciplina"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-text2 hover:bg-elevated hover:text-text transition-colors"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="flex-none">
+              <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z" strokeLinejoin="round" />
+            </svg>
+            Disciplina e limites
           </Link>
 
           <button

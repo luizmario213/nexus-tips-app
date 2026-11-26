@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/Logo";
+import { AmbientBackground } from "@/components/fx";
 
 // Destino do link de "redefinir senha" — seja o admin que disparou (painel /admin/usuarios)
 // ou, futuramente, um "esqueci minha senha" self-service. O Supabase, ao clicar no link do
@@ -34,9 +35,9 @@ function passwordStrength(pw: string) {
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  if (score <= 1) return { label: "Fraca", pct: 25, color: "#F0445E" };
-  if (score <= 3) return { label: "Razoável", pct: 60, color: "#F5A524" };
-  return { label: "Forte", pct: 100, color: "#16C784" };
+  if (score <= 1) return { label: "Fraca", pct: 25, color: "#FF4D6D" };
+  if (score <= 3) return { label: "Razoável", pct: 60, color: "#FFB547" };
+  return { label: "Forte", pct: 100, color: "#14E3A0" };
 }
 
 export default function RedefinirSenhaPage() {
@@ -114,11 +115,12 @@ function RedefinirSenhaForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-6">
-      <div className="w-full max-w-sm flex flex-col gap-5">
+    <div className="min-h-screen flex items-center justify-center bg-bg p-5 relative overflow-hidden">
+      <AmbientBackground variant="auth" />
+      <div className="card relative z-10 w-full max-w-[420px] flex flex-col gap-5 p-8 sm:p-10 animate-fade-up">
         <div>
           <Logo size={28} />
-          <h1 className="text-xl font-bold mt-4">Redefinir senha</h1>
+          <h1 className="font-display text-[26px] font-semibold tracking-tight mt-6">Redefinir senha</h1>
           <p className="text-text2 text-sm mt-1">Escolha uma senha nova para sua conta.</p>
         </div>
 
@@ -128,7 +130,7 @@ function RedefinirSenhaForm() {
 
         {status === "invalido" && (
           <div className="flex items-start gap-2 bg-danger/10 border border-danger/30 rounded-lg px-3 py-3">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F0445E" strokeWidth="2" className="flex-none mt-0.5">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FF4D6D" strokeWidth="2" className="flex-none mt-0.5">
               <circle cx="12" cy="12" r="9" />
               <path d="M12 8v5M12 16h.01" strokeLinecap="round" />
             </svg>
@@ -144,7 +146,7 @@ function RedefinirSenhaForm() {
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-text2">Nova senha</label>
               <div className="relative">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#66758A" strokeWidth="1.8" className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#69759A" strokeWidth="1.8" className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
                   <rect x="5" y="11" width="14" height="9" rx="2" />
                   <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
                 </svg>
@@ -201,7 +203,7 @@ function RedefinirSenhaForm() {
 
         {sucesso && (
           <div className="flex items-start gap-2 bg-success/10 border border-success/30 rounded-lg px-3 py-3">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="2.5" className="flex-none mt-0.5">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5" className="flex-none mt-0.5">
               <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <p className="text-success text-xs leading-relaxed">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/Logo";
+import { NexusCore, AmbientBackground } from "@/components/fx";
 
 function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -46,9 +47,9 @@ function passwordStrength(pw: string) {
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  if (score <= 1) return { label: "Fraca", pct: 25, color: "#F0445E" };
-  if (score <= 3) return { label: "Razoável", pct: 60, color: "#F5A524" };
-  return { label: "Forte", pct: 100, color: "#16C784" };
+  if (score <= 1) return { label: "Fraca", pct: 25, color: "#FF4D6D" };
+  if (score <= 3) return { label: "Razoável", pct: 60, color: "#FFB547" };
+  return { label: "Forte", pct: 100, color: "#14E3A0" };
 }
 
 export default function CadastroPage() {
@@ -107,17 +108,12 @@ export default function CadastroPage() {
   return (
     <div className="min-h-screen flex bg-bg">
       {/* PAINEL DE MARCA */}
-      <div className="hidden md:flex flex-1 relative bg-gradient-to-br from-bg2 to-[#050b18] border-r border-border p-12 flex-col justify-between overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage:
-              "linear-gradient(#8FA2BE 1px, transparent 1px), linear-gradient(90deg, #8FA2BE 1px, transparent 1px)",
-            backgroundSize: "42px 42px",
-          }}
-        />
-        <div className="absolute -top-24 -right-20 w-[26rem] h-[26rem] bg-primary opacity-[0.16] blur-[100px] rounded-full" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-success opacity-[0.08] blur-[90px] rounded-full" />
+      <div className="hidden md:flex flex-1 relative bg-bg border-r border-white/[0.06] p-12 flex-col justify-between overflow-hidden">
+        <div className="absolute inset-0">
+          <NexusCore className="absolute inset-0" offsetX={0.9} offsetY={1.5} scale={0.6} particles={1600} />
+        </div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-bg via-bg/40 to-transparent" />
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-bg/70 via-transparent to-transparent" />
 
         <div className="relative">
           <Logo size={30} />
@@ -127,7 +123,7 @@ export default function CadastroPage() {
           <div className="inline-flex items-center gap-2 bg-success/10 border border-success/30 rounded-md px-3 py-1.5 w-fit mb-5">
             <span className="text-[11px] font-bold tracking-widest text-success">GRÁTIS PARA COMEÇAR</span>
           </div>
-          <h1 className="text-3xl font-bold leading-tight mb-4">
+          <h1 className="font-display text-[40px] font-semibold leading-[1.02] tracking-[-0.035em] mb-4">
             Pare de operar no escuro.
           </h1>
           <p className="text-text2 text-sm leading-relaxed mb-7">
@@ -138,7 +134,7 @@ export default function CadastroPage() {
             {VANTAGENS.map((v) => (
               <div key={v.t} className="flex items-start gap-3">
                 <div className="w-7 h-7 rounded-full bg-elevated border border-border flex-none flex items-center justify-center mt-0.5">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16C784" strokeWidth="2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#14E3A0" strokeWidth="2.5">
                     <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
@@ -152,7 +148,7 @@ export default function CadastroPage() {
         </div>
 
         <div className="relative flex items-center gap-2 text-xs text-muted">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#66758A" strokeWidth="1.8">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#69759A" strokeWidth="1.8">
             <rect x="5" y="11" width="14" height="9" rx="2" />
             <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
           </svg>
@@ -161,13 +157,14 @@ export default function CadastroPage() {
       </div>
 
       {/* FORM */}
-      <div className="flex-1 flex items-center justify-center p-8 sm:p-10 relative">
-        <div className="md:hidden absolute top-6 left-6">
+      <div className="flex-1 flex items-center justify-center p-5 sm:p-10 relative overflow-hidden">
+        <AmbientBackground variant="auth" contained />
+        <div className="md:hidden absolute top-6 left-6 z-10">
           <Logo size={26} />
         </div>
-        <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-4 mt-10 md:mt-0">
+        <form onSubmit={handleSubmit} className="card relative z-10 w-full max-w-[420px] flex flex-col gap-4 mt-14 md:mt-0 p-7 sm:p-9 animate-fade-up">
           <div>
-            <h1 className="text-xl font-bold">Criar sua conta</h1>
+            <h1 className="font-display text-[26px] font-semibold tracking-tight">Criar sua conta</h1>
             <p className="text-text2 text-sm mt-1">Leva menos de um minuto — sem cartão.</p>
           </div>
 
@@ -251,7 +248,7 @@ export default function CadastroPage() {
 
           {error && (
             <div className="flex items-start gap-2 bg-danger/10 border border-danger/30 rounded-lg px-3 py-2.5">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F0445E" strokeWidth="2" className="flex-none mt-0.5">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FF4D6D" strokeWidth="2" className="flex-none mt-0.5">
                 <circle cx="12" cy="12" r="9" />
                 <path d="M12 8v5M12 16h.01" strokeLinecap="round" />
               </svg>
