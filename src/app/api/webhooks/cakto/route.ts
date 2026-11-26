@@ -23,28 +23,54 @@ function iguais(a: string, b: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const secret = process.env.CAKTO_WEBHOOK_SECRET;
+  // trim(): protege contra espaço/quebra de linha colados junto na Vercel.
+  const secret = (process.env.CAKTO_WEBHOOK_SECRET || "").trim();
   if (!secret) return NextResponse.json({ error: "CAKTO_WEBHOOK_SECRET não configurado" }, { status: 500 });
 
   // Lê o corpo cru ANTES de qualquer parse — a assinatura é calculada sobre esses bytes.
   const raw = await request.text();
-
-  // Verificação recomendada pela Cakto: HMAC-SHA256 de "{timestamp}.{corpo}" com o secret.
-  const sig = request.headers.get("x-cakto-signature");
-  const ts = request.headers.get("x-cakto-timestamp");
   let body: { secret?: string; event?: string; data?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "json inválido" }, { status: 400 });
   }
-  if (sig && ts) {
-    if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return NextResponse.json({ error: "timestamp expirado" }, { status: 401 });
-    const esperado = "v1=" + createHmac("sha256", secret).update(`${ts}.`).update(raw).digest("hex");
-    if (!iguais(sig, esperado)) return NextResponse.json({ error: "assinatura inválida" }, { status: 401 });
-  } else if (!body.secret || !iguais(String(body.secret), secret)) {
-    // Método antigo (secret no corpo), ainda aceito pela Cakto.
-    return NextResponse.json({ error: "secret inválido" }, { status: 401 });
+
+  // Autenticação — aceita qualquer um dos dois métodos da Cakto:
+  // (a) o "secret" que vem no corpo de todo aviso;
+  // (b) a assinatura HMAC-SHA256 nos cabeçalhos X-Cakto-Signature / X-Cakto-Timestamp.
+  //     Testamos as variações (timestamp em s ou ms, com ou sem "{ts}.", hex ou base64)
+  //     porque a documentação não é 100% explícita sobre o formato.
+  const secretCorpo = typeof body.secret === "string" ? body.secret.trim() : "";
+  let autenticado = !!secretCorpo && iguais(secretCorpo, secret);
+
+  const sig = (request.headers.get("x-cakto-signature") || "").trim();
+  const ts = (request.headers.get("x-cakto-timestamp") || "").trim();
+  if (!autenticado && sig) {
+    const recebida = sig.replace(/^v1=/, "");
+    const tsNum = Number(ts);
+    const tsSeg = tsNum > 1e12 ? tsNum / 1000 : tsNum;
+    const recente = !ts || (isFinite(tsSeg) && Math.abs(Date.now() / 1000 - tsSeg) <= 600);
+    const bases = ts ? [`${ts}.${raw}`, raw] : [raw];
+    for (const base of bases) {
+      const h = createHmac("sha256", secret).update(base);
+      const d = h.digest();
+      if (iguais(recebida, d.toString("hex")) || iguais(recebida, d.toString("base64"))) {
+        autenticado = recente;
+        break;
+      }
+    }
+  }
+
+  if (!autenticado) {
+    // O motivo aparece no histórico de envios do webhook na Cakto (sem expor a chave).
+    const motivo = secretCorpo
+      ? `secret do aviso não confere com CAKTO_WEBHOOK_SECRET (recebido ${secretCorpo.length} caracteres, esperado ${secret.length})`
+      : sig
+      ? "assinatura do cabeçalho não confere"
+      : "aviso sem secret e sem assinatura";
+    console.warn("[cakto] 401:", motivo);
+    return NextResponse.json({ error: motivo }, { status: 401 });
   }
 
   const evento = String(body.event || "");
