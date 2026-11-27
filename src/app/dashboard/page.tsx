@@ -54,7 +54,22 @@ export default async function VisaoGeralPage() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [{ data: activeSub }, { data: profile }] = await Promise.all([
+  const trintaDiasAtras = new Date();
+  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+  const seteDiasAtras = new Date();
+  seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+
+  // Todas as consultas da Visão Geral saem juntas (antes eram 7 idas ao banco em fila).
+  const [
+    { data: activeSub },
+    { data: profile },
+    { data: allOperations },
+    { data: sinaisRecentes },
+    { data: sinaisSemana },
+    { data: ticker },
+    { data: noAr },
+    { data: encerrados },
+  ] = await Promise.all([
     supabase
       .from("subscriptions")
       .select("*")
@@ -64,15 +79,16 @@ export default async function VisaoGeralPage() {
       .limit(1)
       .maybeSingle(),
     supabase.from("profiles").select("role, name, banca_inicial").eq("id", user.id).single(),
+    supabase.from("operations").select("*, signals(*)").eq("user_id", user.id).order("created_at", { ascending: false }),
+    supabase.from("signals").select("status").in("status", ["green", "red"]).gte("created_at", trintaDiasAtras.toISOString()),
+    supabase.from("signals").select("status, created_at").in("status", ["green", "red"]).gte("created_at", seteDiasAtras.toISOString()),
+    supabase.from("signals").select("id, time_a, time_b, tipo, status").in("status", ["green", "red"]).order("created_at", { ascending: false }).limit(14),
+    supabase.from("signals").select("*").eq("status", "no_ar"),
+    supabase.from("signals").select("id, status, odd, mercado, competicao, created_at").in("status", ["green", "red"]),
   ]);
   // Conta admin tem acesso liberado mesmo sem assinatura — ver src/lib/access.ts.
   const subscribed = temAcessoLiberado(profile?.role, !!activeSub);
 
-  const { data: allOperations } = await supabase
-    .from("operations")
-    .select("*, signals(*)")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
 
   const operations = (allOperations || []).filter((op) => op.status === "andamento");
   const settled = (allOperations || []).filter((op) => op.status !== "andamento");
@@ -83,13 +99,6 @@ export default async function VisaoGeralPage() {
 
   // Assertividade da plataforma nos últimos 30 dias — calculada de verdade a partir dos
   // sinais encerrados, não um número fixo no código.
-  const trintaDiasAtras = new Date();
-  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-  const { data: sinaisRecentes } = await supabase
-    .from("signals")
-    .select("status")
-    .in("status", ["green", "red"])
-    .gte("created_at", trintaDiasAtras.toISOString());
   const plataformaGreens = (sinaisRecentes || []).filter((s) => s.status === "green").length;
   const plataformaTotal = sinaisRecentes?.length || 0;
   const assertividadePlataforma = plataformaTotal
@@ -98,13 +107,6 @@ export default async function VisaoGeralPage() {
 
   // Trilha dos últimos 7 dias (volume + proporção green/red) — só pra dar um pulso visual
   // de atividade real da plataforma, calculado a partir dos mesmos sinais encerrados acima.
-  const seteDiasAtras = new Date();
-  seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
-  const { data: sinaisSemana } = await supabase
-    .from("signals")
-    .select("status, created_at")
-    .in("status", ["green", "red"])
-    .gte("created_at", seteDiasAtras.toISOString());
 
   const hoje = new Date();
   const dias = Array.from({ length: 7 }).map((_, i) => {
@@ -138,12 +140,6 @@ export default async function VisaoGeralPage() {
   // Ticker de sinais recentes da plataforma — mesma ideia do histórico público da landing,
   // só que ao vivo dentro do painel. Também serve pra calcular a sequência atual da
   // plataforma (streak), usada como gancho pra quem ainda não assinou.
-  const { data: ticker } = await supabase
-    .from("signals")
-    .select("id, time_a, time_b, tipo, status")
-    .in("status", ["green", "red"])
-    .order("created_at", { ascending: false })
-    .limit(14);
 
   let platformStreak = 0;
   for (const s of ticker || []) {
@@ -160,10 +156,6 @@ export default async function VisaoGeralPage() {
   }
 
   // Sinais no ar (pro bloco "Próximo sinal") e todo o histórico encerrado (pro simulador).
-  const [{ data: noAr }, { data: encerrados }] = await Promise.all([
-    supabase.from("signals").select("*").eq("status", "no_ar"),
-    supabase.from("signals").select("id, status, odd, mercado, competicao, created_at").in("status", ["green", "red"]),
-  ]);
   const agora = Date.now();
   const proximo =
     ((noAr as Signal[]) || [])

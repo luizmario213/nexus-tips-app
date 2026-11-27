@@ -96,7 +96,7 @@ export function SignalXRay({
                     labelRefs.current[i] = el;
                   }}
                   className="absolute left-0 top-0"
-                  style={{ willChange: "transform" }}
+                  style={{ willChange: "transform", opacity: 0 }}
                 >
                   <span
                     className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold backdrop-blur-md transition-all duration-300 ${

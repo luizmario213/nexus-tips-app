@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -67,6 +67,11 @@ export default function CadastroPage() {
 
   const strength = passwordStrength(password);
 
+  // Já baixa o painel enquanto a pessoa preenche o formulário — a entrada fica instantânea.
+  useEffect(() => {
+    router.prefetch("/dashboard");
+  }, [router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -94,14 +99,15 @@ export default function CadastroPage() {
       password,
       options: { data: { name, phone } },
     });
-    setLoading(false);
-
     if (signUpError) {
+      setLoading(false);
       setError(signUpError.message);
       return;
     }
 
-    router.push("/dashboard");
+    // Mantém o botão em "carregando" até a página trocar — antes ele voltava ao normal e
+    // parecia que nada tinha acontecido durante a navegação.
+    router.replace("/dashboard");
     router.refresh();
   }
 

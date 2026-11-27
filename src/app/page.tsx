@@ -62,20 +62,20 @@ const DEMO_SIGNALS = [
 
 const PILARES = [
   {
-    titulo: "TECNOLOGIA",
-    texto: "Um motor de dados cruza estatística, contexto e histórico antes de qualquer sinal sair do lugar.",
+    titulo: "ANÁLISE DE VERDADE",
+    texto: "Cada sinal sai do cruzamento de jogos, estatísticas, odds e histórico — e chega com o porquê por escrito.",
   },
   {
-    titulo: "PRECISÃO",
-    texto: "Cada entrada vem com o raciocínio explicado — não é \"confia em mim\", é o porquê por escrito.",
+    titulo: "RISCO À VISTA",
+    texto: "Todo sinal mostra também o que pode dar errado. Você entra sabendo, nunca no escuro.",
   },
   {
-    titulo: "CONTROLE",
-    texto: "Sua banca nunca passa pela nossa mão. Você marca, você decide, você gerencia.",
+    titulo: "SUA BANCA, SUAS REGRAS",
+    texto: "Limite diário, stop e pausa: a plataforma te segura quando a emoção quer acelerar.",
   },
   {
-    titulo: "CONFIANÇA",
-    texto: "Todo sinal encerrado fica no histórico público — greens e reds, sem exceção.",
+    titulo: "HISTÓRICO QUE NÃO SE APAGA",
+    texto: "Todo sinal encerrado vai pro histórico público — green e red. Ninguém edita depois.",
   },
 ];
 
@@ -84,16 +84,14 @@ const COMPARACAO = [
   { ponto: "Metodologia", ruim: "\"Manda ver, confia\"", bom: "Contexto e raciocínio explicados em cada sinal" },
   { ponto: "Sua banca", ruim: "Grupo pressiona valor e ritmo de entrada", bom: "Você decide o valor, o ritmo e a casa que usa" },
   { ponto: "Quando erra", ruim: "Sinal some do grupo, ninguém fala mais", bom: "Red fica no histórico do mesmo jeito que o green" },
-  { ponto: "Cobrança", ruim: "PIX pro perfil pessoal, sem nota, sem contrato", bom: "Assinatura formal, cancele quando quiser, sem fidelidade" },
+  { ponto: "Cobrança", ruim: "PIX pro perfil pessoal, sem nota, sem contrato", bom: "Assinatura formal, R$ 29,90/mês, cancela com 1 clique" },
 ];
 
 const ETAPAS = [
-  { n: "01", t: "Análise disponível", d: "O motor cruza dados do confronto e sinaliza uma oportunidade." },
-  { n: "02", t: "Oportunidade identificada", d: "A entrada é organizada com mercado, odd e contexto." },
-  { n: "03", t: "Mercado monitorado", d: "O evento fica ativo e visível até o apito final." },
-  { n: "04", t: "Resultado confirmado", d: "Green ou red — o status muda na hora, pra todo mundo ver." },
-  { n: "05", t: "Dados atualizados", d: "O histórico e os resultados são recalculados automaticamente." },
-  { n: "06", t: "Resultado em 30 dias", d: "A assertividade do período fica pública, sempre atualizada." },
+  { n: "01", t: "Crie sua conta grátis", d: "30 segundos, sem cartão. Você já confere o histórico público e vê como tudo funciona." },
+  { n: "02", t: "Receba o sinal com o porquê", d: "Antes do jogo: mercado, odd, o que os agentes encontraram e os riscos — tudo no Raio-X." },
+  { n: "03", t: "Você decide e marca", d: "Aposta na casa que quiser, com o valor da sua gestão. A Nexus calcula sua banca sozinha." },
+  { n: "04", t: "O resultado vai pro histórico", d: "Green ou red, entra na conta pública na hora. É assim que você confere tudo." },
 ];
 
 const AGENT_ICONS: Record<string, React.ReactNode> = {
@@ -140,26 +138,44 @@ const AGENTES = [
 
 type AgentId = (typeof AGENTES)[number]["id"];
 
+type ResultadosPublicos = {
+  total30: number;
+  greens30: number;
+  reds30: number;
+  pct30: number | null;
+  unidades30: number;
+  totalHistorico: number;
+  ultimos: { competicao: string; time_a: string; time_b: string; mercado: string; odd: number; status: string; tipo: string; created_at: string }[];
+};
+
 // Duração (ms) de cada etapa — uma por agente (0..4) mais a etapa final de correlação no
 // núcleo (5). Variada de propósito, pra não parecer um metrônomo.
 const STEP_DURATIONS = [950, 800, 1050, 900, 1150, 1000];
 
 const FAQ_RAPIDO = [
   {
-    p: "A Nexus Tips promete lucro?",
-    r: "Não, e desconfie de quem promete. Entregamos análise, contexto e histórico público — a decisão e o risco são sempre seus.",
+    p: "Quanto eu vou ganhar?",
+    r: "Ninguém sério pode responder isso — e quem responde está vendendo ilusão. A Nexus não promete lucro. O que entregamos é o processo: sinais explicados, gestão de banca e um histórico aberto pra você julgar com os próprios olhos.",
+  },
+  {
+    p: "Preciso entender de apostas?",
+    r: "Não. Cada sinal diz o mercado, a odd e por que foi aprovado, em linguagem direta. A sugestão de entrada já vem calculada pela sua banca.",
   },
   {
     p: "Vocês mexem na minha banca ou no meu dinheiro?",
-    r: "Nunca. A Nexus não movimenta nada — você aposta na casa que quiser e só marca a operação aqui pra acompanhar o resultado.",
+    r: "Nunca. Você aposta na casa que preferir e só marca a operação aqui pra acompanhar o resultado. A Nexus não recebe nem movimenta seu dinheiro.",
   },
   {
-    p: "Se eu não gostar, como cancelo?",
-    r: "Um botão, dentro do próprio painel, sem ligação, sem justificativa. Sem fidelidade em nenhum plano.",
+    p: "Como recebo os sinais?",
+    r: "Na Sala ao Vivo, dentro do painel: o sinal aparece na hora em que é publicado, com contagem regressiva até o jogo e o Raio-X completo.",
+  },
+  {
+    p: "E se eu não gostar?",
+    r: "Você tem 7 dias de garantia pra pedir o reembolso, e pode cancelar quando quiser com um botão no painel — sem ligação, sem multa, sem fidelidade.",
   },
   {
     p: "Por que confiar mais na Nexus do que num grupo de Telegram?",
-    r: "Porque não dá pra apagar um red aqui. Todo sinal publicado fica registrado e entra na conta do histórico público — inclusive os que erram.",
+    r: "Porque aqui não dá pra apagar um red. Todo sinal publicado fica registrado e entra na conta do histórico público — inclusive os que erram. Você confere antes de pagar.",
   },
 ];
 
@@ -337,6 +353,19 @@ export default function LandingPage() {
   const labelRefs = useRef<(HTMLElement | null)[]>([]);
   const [isDesktop, setIsDesktop] = useState(true);
   const timeline = useScrollProgress<HTMLDivElement>();
+  const [pub, setPub] = useState<ResultadosPublicos | null>(null);
+  const [mostrarBarra, setMostrarBarra] = useState(false);
+
+  // Números reais do histórico (cacheados 5 min no servidor).
+  useEffect(() => {
+    fetch("/api/resultados-publicos")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j?.ok && setPub(j))
+      .catch(() => {});
+    const onScroll = () => setMostrarBarra(window.scrollY > 700);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -454,7 +483,7 @@ export default function LandingPage() {
                     labelRefs.current[i] = el;
                   }}
                   className="absolute left-0 top-0 transition-opacity duration-300"
-                  style={{ willChange: "transform" }}
+                  style={{ willChange: "transform", opacity: 0 }}
                 >
                   <div
                     className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10.5px] font-semibold backdrop-blur-md transition-all duration-300 ${
@@ -486,7 +515,7 @@ export default function LandingPage() {
             <div className="animate-fade-up">
               <span className="eyebrow">
                 <span className="eyebrow-dot" />
-                Inteligência esportiva
+                Inteligência esportiva · histórico aberto
               </span>
             </div>
             <h1
@@ -499,26 +528,29 @@ export default function LandingPage() {
               <span className="font-serif italic font-normal tracking-[-0.02em] text-text">todos.</span>
             </h1>
             <p className="text-text2 text-base md:text-[18px] leading-relaxed max-w-xl animate-fade-up" style={{ animationDelay: "160ms" }}>
-              A Nexus Tips organiza contexto, mostra o porquê de cada sinal e mantém o histórico 100% público — greens e
-              reds, sem esconder nada. Você decide, gerencia sua própria banca e nunca fica no escuro.
+              Sinais com o porquê de cada entrada, os riscos à vista e um histórico que ninguém consegue editar — greens e
+              reds. <span className="text-text">Você confere tudo antes de pagar um centavo.</span>
             </p>
             <div className="flex flex-wrap gap-3 items-center animate-fade-up" style={{ animationDelay: "240ms" }}>
               <Magnetic>
                 <Link href="/cadastro" className="btn-primary group text-[15px] px-7 py-4 inline-flex items-center gap-2">
-                  Quero ver os resultados agora
+                  Criar conta grátis
                   <Arrow />
                 </Link>
               </Magnetic>
-              <a href="#planos" className="btn-ghost text-[15px] px-6 py-4 inline-flex items-center">
-                Ver planos
+              <a href="#resultados" className="btn-ghost text-[15px] px-6 py-4 inline-flex items-center">
+                Ver o histórico público
               </a>
             </div>
-            <div className="flex flex-col sm:flex-row gap-x-6 gap-y-2 animate-fade-up" style={{ animationDelay: "320ms" }}>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 animate-fade-up max-w-xl" style={{ animationDelay: "320ms" }}>
               <div className="flex items-center gap-2 text-[13px] text-text2">
-                <Check /> Banca 100% sua, sempre
+                <Check /> Conta grátis em 30s, sem cartão
               </div>
               <div className="flex items-center gap-2 text-[13px] text-text2">
-                <Check /> Sem fidelidade — cancele no painel
+                <Check /> R$ 29,90/mês só se quiser liberar tudo
+              </div>
+              <div className="flex items-center gap-2 text-[13px] text-text2">
+                <Check /> Cancela com 1 clique
               </div>
             </div>
           </div>
@@ -634,8 +666,11 @@ export default function LandingPage() {
         <div className="relative z-10 max-w-7xl w-full mx-auto px-5 md:px-10 pb-10">
           <div className="grid grid-cols-3 gap-px rounded-2xl overflow-hidden border border-white/[0.07] bg-white/[0.05] backdrop-blur-xl max-w-2xl">
             {[
-              { v: <CountUp to={94.8} decimals={1} suffix="%" />, l: "assertividade 30d" },
-              { v: <CountUp to={142} />, l: "sinais publicados" },
+              {
+                v: pub?.pct30 != null && pub.total30 >= 5 ? <CountUp to={pub.pct30} decimals={1} suffix="%" /> : "—",
+                l: "acerto · 30 dias",
+              },
+              { v: pub ? <CountUp to={pub.total30 >= 5 ? pub.total30 : pub.totalHistorico} /> : "—", l: pub && pub.total30 >= 5 ? "sinais em 30 dias" : "sinais no histórico" },
               { v: <CountUp to={100} suffix="%" />, l: "histórico público" },
             ].map((s, i) => (
               <div key={i} className="bg-[rgba(6,10,24,.6)] px-4 md:px-6 py-4">
@@ -650,19 +685,32 @@ export default function LandingPage() {
       {/* TICKER */}
       <div className="relative border-y border-white/[0.06] bg-white/[0.015] overflow-hidden py-4 [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
         <div className="marquee-track flex w-max gap-10">
-          {[...Array(2)].flatMap((_, k) =>
-            [...DEMO_SIGNALS, ...DEMO_SIGNALS].map((s, i) => (
-              <div key={`${k}-${i}`} className="flex items-center gap-3 text-[13px] whitespace-nowrap">
-                <span className="w-1.5 h-1.5 rounded-full bg-info shadow-[0_0_8px_#33D6F5]" />
-                <span className="text-muted font-semibold text-[11px] tracking-wider">{s.comp.split("·")[0]}</span>
-                <span className="font-semibold">
-                  {s.timeA} x {s.timeB}
-                </span>
-                <span className="text-text2">{s.mercado}</span>
-                <span className="font-mono text-info">@{s.odd}</span>
-              </div>
-            ))
-          )}
+          {pub && pub.ultimos.length >= 4
+            ? [...Array(2)].flatMap((_, k) =>
+                [...pub.ultimos, ...pub.ultimos].map((s, i) => (
+                  <div key={`${k}-${i}`} className="flex items-center gap-3 text-[13px] whitespace-nowrap">
+                    <span className={`w-1.5 h-1.5 rounded-full ${s.status === "green" ? "bg-success shadow-[0_0_8px_#14E3A0]" : "bg-danger shadow-[0_0_8px_#FF4D6D]"}`} />
+                    <span className="text-muted font-semibold text-[11px] tracking-wider uppercase">{s.competicao}</span>
+                    <span className="font-semibold">{s.tipo === "bilhete" ? s.time_b : `${s.time_a} x ${s.time_b}`}</span>
+                    <span className="text-text2">{s.mercado}</span>
+                    <span className="font-mono text-info">@{Number(s.odd).toFixed(2)}</span>
+                    <span className={`text-[11px] font-bold ${s.status === "green" ? "text-success" : "text-danger"}`}>{s.status === "green" ? "GREEN" : "RED"}</span>
+                  </div>
+                ))
+              )
+            : [...Array(2)].flatMap((_, k) =>
+                [...DEMO_SIGNALS, ...DEMO_SIGNALS].map((s, i) => (
+                  <div key={`${k}-${i}`} className="flex items-center gap-3 text-[13px] whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-info shadow-[0_0_8px_#33D6F5]" />
+                    <span className="text-muted font-semibold text-[11px] tracking-wider">{s.comp.split("·")[0]}</span>
+                    <span className="font-semibold">
+                      {s.timeA} x {s.timeB}
+                    </span>
+                    <span className="text-text2">{s.mercado}</span>
+                    <span className="font-mono text-info">@{s.odd}</span>
+                  </div>
+                ))
+              )}
         </div>
       </div>
 
@@ -673,10 +721,10 @@ export default function LandingPage() {
           tone="red"
           title={
             <>
-              A maioria dos grupos de tips vive de <span className="font-serif italic font-normal">sorte</span> e edição de print.
+              Você já perdeu dinheiro seguindo <span className="font-serif italic font-normal">print bonito</span>?
             </>
           }
-          sub="Green vem com captura de tela enorme, red simplesmente some da conversa. Não tem como conferir nada. A Nexus foi construída pra ser o oposto disso."
+          sub="Grupo de tips mostra o green gigante e apaga o red. Você entra no embalo, sem saber o porquê, sem gestão — e quando dá errado, ninguém responde. Não é falta de sorte. É falta de transparência."
         />
 
         <div className="grid md:grid-cols-2 gap-5 mt-14" style={{ perspective: "1400px" }}>
@@ -728,9 +776,9 @@ export default function LandingPage() {
       {/* PILARES */}
       <section className="relative px-5 md:px-10 py-20 max-w-7xl mx-auto">
         <SectionHead
-          eyebrow="Metodologia"
-          title="Como a Nexus chega numa entrada"
-          sub="Tecnologia, precisão, controle e confiança — não é slogan, é a ordem em que cada sinal é montado."
+          eyebrow="Por que funciona"
+          title="Feito pra você decidir melhor — não pra te empolgar"
+          sub="Quatro coisas que nenhum grupo de tips te entrega."
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
           {PILARES.map((p, i) => (
@@ -757,9 +805,9 @@ export default function LandingPage() {
         <div className="grid lg:grid-cols-[1fr_1.2fr] gap-14">
           <div className="lg:sticky lg:top-32 self-start">
             <SectionHead
-              eyebrow="Do clique ao resultado"
-              title="O que você acompanha, do primeiro clique em diante"
-              sub="Cada etapa do sinal fica visível — sem caixa-preta."
+              eyebrow="Como funciona"
+              title="Do cadastro ao resultado em 4 passos"
+              sub="Sem curso, sem grupo, sem caixa-preta."
             />
             <Reveal delay={150} className="mt-10">
               <div className="border-l-2 border-primary pl-5">
@@ -803,44 +851,73 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* RESULTADOS */}
+      {/* RESULTADOS — números reais, vindos de /api/resultados-publicos */}
       <section id="resultados" className="relative px-5 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
         <div className="absolute -bottom-10 left-1/3 w-[520px] h-[520px] bg-success opacity-[0.07] blur-[130px] rounded-full pointer-events-none" />
         <SectionHead
-          eyebrow="Resultados sem caixa-preta"
+          eyebrow="Histórico público"
           tone="green"
-          title="Números calculados em cima do que foi publicado — não do que sobrou."
-          sub="Tudo abaixo é sobre os sinais encerrados nos últimos 30 dias. Sem projeção, sem promessa — histórico verificável, aberto pra qualquer pessoa, assinante ou não."
+          title="Confira antes de pagar. Tudo, inclusive os reds."
+          sub="Estes números saem direto do histórico da plataforma e se atualizam sozinhos. Sem print, sem projeção, sem promessa."
         />
-        <Reveal delay={100} className="mt-12">
-          <TiltCard max={4} className="card p-8 md:p-10 flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
-            <Gauge value={94.8} />
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
-              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
-                <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em]">SINAIS PUBLICADOS · 30D</div>
-                <div className="font-display text-5xl font-semibold mt-3 tracking-tight">
-                  <CountUp to={142} />
-                </div>
-                <div className="text-[12px] text-muted mt-2">Volume de análises entregues no período.</div>
-              </div>
-              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
-                <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em]">GREENS / REDS · 30D</div>
-                <div className="font-display text-5xl font-semibold mt-3 tracking-tight">
-                  <CountUp to={121} className="text-success" />
-                  <span className="text-muted text-2xl"> / </span>
-                  <CountUp to={21} className="text-danger" />
-                </div>
-                <div className="mt-3 h-2 rounded-full bg-danger/30 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-info to-success rounded-full" style={{ width: `${(121 / 142) * 100}%` }} />
-                </div>
-              </div>
-              <p className="sm:col-span-2 text-[13px] text-text2 leading-relaxed">
-                As 21 operações com red estão contadas aqui — do mesmo jeito que os 121 greens. É assim que um histórico
-                público funciona: mostra tudo, não só a parte boa.
+        {!pub ? (
+          <div className="card h-64 mt-12 animate-pulse" />
+        ) : pub.total30 < 5 ? (
+          <Reveal delay={100} className="mt-12">
+            <div className="card p-8 md:p-10 text-center">
+              <div className="font-display text-2xl font-semibold">O histórico está começando agora</div>
+              <p className="text-text2 mt-2 max-w-lg mx-auto">
+                Cada sinal publicado entra aqui assim que encerra — green ou red. {pub.totalHistorico > 0 ? `Já são ${pub.totalHistorico} no histórico.` : ""}
               </p>
             </div>
-          </TiltCard>
-        </Reveal>
+          </Reveal>
+        ) : (
+          <Reveal delay={100} className="mt-12">
+            <TiltCard max={4} className="card p-8 md:p-10 flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+              <Gauge value={pub.pct30 ?? 0} />
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
+                <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
+                  <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em]">SINAIS ENCERRADOS · 30D</div>
+                  <div className="font-display text-5xl font-semibold mt-3 tracking-tight">
+                    <CountUp to={pub.total30} />
+                  </div>
+                  <div className="text-[12px] text-muted mt-2">
+                    Saldo de <span className={pub.unidades30 >= 0 ? "text-success" : "text-danger"}>{pub.unidades30 >= 0 ? "+" : ""}{String(pub.unidades30).replace(".", ",")} unidades</span> com 1 unidade por sinal, na odd publicada.
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
+                  <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em]">GREENS / REDS · 30D</div>
+                  <div className="font-display text-5xl font-semibold mt-3 tracking-tight">
+                    <CountUp to={pub.greens30} className="text-success" />
+                    <span className="text-muted text-2xl"> / </span>
+                    <CountUp to={pub.reds30} className="text-danger" />
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-danger/30 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-info to-success rounded-full" style={{ width: `${pub.total30 ? (pub.greens30 / pub.total30) * 100 : 0}%` }} />
+                  </div>
+                </div>
+                <div className="sm:col-span-2">
+                  <div className="text-[10.5px] font-bold text-text2 tracking-[0.16em] mb-2.5">ÚLTIMOS RESULTADOS</div>
+                  <div className="flex flex-col divide-y divide-white/[0.05] rounded-xl border border-white/[0.06] overflow-hidden">
+                    {pub.ultimos.slice(0, 5).map((u, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-white/[0.015] text-[13px]">
+                        <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 flex-none ${u.status === "green" ? "bg-success/15 text-success" : "bg-danger/15 text-danger"}`}>
+                          {u.status === "green" ? "GREEN" : "RED"}
+                        </span>
+                        <span className="font-semibold truncate">{u.tipo === "bilhete" ? u.time_b : `${u.time_a} x ${u.time_b}`}</span>
+                        <span className="text-text2 truncate hidden sm:inline">{u.mercado}</span>
+                        <span className="ml-auto font-mono text-info flex-none">@{Number(u.odd).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[12px] text-muted mt-3">
+                    Os {pub.reds30} reds estão contados aqui do mesmo jeito que os {pub.greens30} greens. Resultado passado não garante resultado futuro.
+                  </p>
+                </div>
+              </div>
+            </TiltCard>
+          </Reveal>
+        )}
       </section>
 
       {/* PLANO ÚNICO */}
@@ -866,7 +943,10 @@ export default function LandingPage() {
               <span className="font-display text-[64px] font-semibold tracking-tight leading-none">{PLANOS.mensal.valor.toFixed(2).replace(".", ",")}</span>
               <span className="text-[14px] text-muted">/mês</span>
             </div>
-            <div className="text-xs text-muted mt-2">Pix Automático ou cartão · renovação mensal · cancele com um clique</div>
+            <div className="text-xs text-muted mt-2">Menos de R$ 1 por dia · Pix Automático ou cartão · cancele com um clique</div>
+            <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-info/30 bg-info/10 px-3 py-1.5 text-[11.5px] font-semibold text-info">
+              🛡 7 dias de garantia — não gostou, pede o reembolso
+            </div>
             <div className="hairline my-7" />
             <div className="flex flex-col gap-3.5">
               {[
@@ -923,16 +1003,16 @@ export default function LandingPage() {
             </div>
             <div className="relative flex flex-col items-center gap-5">
               <h2 className="font-display text-[34px] md:text-[56px] font-semibold max-w-3xl leading-[1.02] tracking-[-0.035em]">
-                Sua banca, suas regras.
+                Abra o histórico.
                 <br />
-                <span className="text-gradient">Nosso histórico, público.</span>
+                <span className="text-gradient">Decida com os próprios olhos.</span>
               </h2>
               <p className="text-text2 text-[15px] md:text-base max-w-md">
-                Criar conta é grátis e leva menos de um minuto — você só paga quando decidir liberar os eventos completos.
+                Criar conta é grátis e leva 30 segundos. Você só assina se gostar do que viu — R$ 29,90/mês, cancela com 1 clique.
               </p>
               <Magnetic>
                 <Link href="/cadastro" className="btn-primary group text-[15px] px-9 py-4 mt-2 inline-flex items-center gap-2">
-                  Criar conta grátis agora
+                  Criar minha conta grátis
                   <Arrow />
                 </Link>
               </Magnetic>
@@ -941,11 +1021,26 @@ export default function LandingPage() {
         </Reveal>
       </section>
 
+      {/* Barra fixa de conversão no celular — aparece depois do hero */}
+      <div
+        className={`fixed bottom-0 inset-x-0 z-50 md:hidden px-3 pb-3 transition-transform duration-500 ${mostrarBarra ? "translate-y-0" : "translate-y-[140%]"}`}
+      >
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[rgba(6,10,24,.92)] backdrop-blur-xl px-4 py-3 shadow-[0_-10px_40px_rgba(0,0,0,.6)]">
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold">Nexus PRO</div>
+            <div className="text-[11px] text-muted">R$ 29,90/mês · cancela quando quiser</div>
+          </div>
+          <Link href="/cadastro" className="btn-primary ml-auto text-[13px] px-4 py-2.5 whitespace-nowrap">
+            Criar conta grátis
+          </Link>
+        </div>
+      </div>
+
       {/* FOOTER */}
       <footer className="border-t border-white/[0.06] px-5 md:px-10 py-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <Logo size={24} />
-          <div className="text-muted text-[13px]">Nexus Tips — Inteligência esportiva. Não vendemos certeza.</div>
+          <div className="text-muted text-[13px] text-center">Nexus Tips — Inteligência esportiva. Não vendemos certeza. · Proibido para menores de 18 anos · Apostas envolvem risco.</div>
           <div className="flex gap-5 text-[13px] text-text2">
             <Link href="/login" className="hover:text-text">Entrar</Link>
             <Link href="/cadastro" className="hover:text-text">Criar conta</Link>

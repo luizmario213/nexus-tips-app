@@ -60,13 +60,13 @@ export async function espelharAssinatura(
  * Quem comprou na Cakto antes de criar a conta: no primeiro acesso ao painel com o mesmo
  * e-mail, a assinatura é ligada à conta. Silencioso se a service role não estiver configurada.
  */
-export async function reivindicarAssinaturas(userId: string, email: string) {
-  if (!email) return;
+export async function reivindicarAssinaturas(userId: string, email: string): Promise<number> {
+  if (!email) return 0;
   let admin: Admin;
   try {
     admin = createAdminClient();
   } catch {
-    return;
+    return 0;
   }
   const { data: pendentes } = await admin
     .from("cakto_assinaturas")
@@ -77,6 +77,7 @@ export async function reivindicarAssinaturas(userId: string, email: string) {
     await admin.from("cakto_assinaturas").update({ user_id: userId, updated_at: new Date().toISOString() }).eq("ref", p.ref);
     await espelharAssinatura(admin, userId, p.ref, p.status, p.valor, p.current_period_end);
   }
+  return (pendentes || []).filter((p) => p.status === "ativa").length;
 }
 
 // ---------------------------------------------------------------- API da Cakto ----

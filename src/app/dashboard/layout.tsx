@@ -19,43 +19,37 @@ export default async function DashboardLayout({
   // O middleware já redireciona quem não está logado, isso aqui é só um cinto de segurança.
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  // Tudo que não depende de outra resposta roda AO MESMO TEMPO (antes era em fila: cada
+  // consulta esperava a anterior, e com o banco longe do servidor isso somava segundos).
+  const [{ data: profile }, { data: activeSub }, { data: settings }] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "ativa")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("app_settings").select("casa_nome, casa_link").eq("id", 1).maybeSingle(),
+  ]);
 
-  // Último acesso (migration 0004) — alimenta o "risco de cancelamento" do admin.
-  // Grava no máximo a cada 30 min pra não escrever no banco a cada navegação.
+  const tarefas: PromiseLike<unknown>[] = [];
+  // Último acesso (migration 0004) — no máximo 1 gravação a cada 30 min.
   const ultimo = profile?.ultimo_acesso ? new Date(profile.ultimo_acesso).getTime() : 0;
   if (profile && Date.now() - ultimo > 30 * 60 * 1000) {
-    await supabase.from("profiles").update({ ultimo_acesso: new Date().toISOString() }).eq("id", user.id);
+    tarefas.push(supabase.from("profiles").update({ ultimo_acesso: new Date().toISOString() }).eq("id", user.id));
   }
-
   // Comprou na Cakto antes de ter conta? Liga a assinatura a esta conta pelo e-mail.
-  if (!DEMO_MODE) {
-    const { count } = await supabase
-      .from("subscriptions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("status", "ativa");
-    if (!count) await reivindicarAssinaturas(user.id, profile?.email || user.email || "");
+  let assinaturaLiberadaAgora = false;
+  if (!DEMO_MODE && !activeSub) {
+    tarefas.push(
+      reivindicarAssinaturas(user.id, profile?.email || user.email || "").then((n) => {
+        assinaturaLiberadaAgora = !!n;
+      })
+    );
   }
-
-  const { data: activeSub } = await supabase
-    .from("subscriptions")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("status", "ativa")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: settings } = await supabase
-    .from("app_settings")
-    .select("casa_nome, casa_link")
-    .eq("id", 1)
-    .maybeSingle();
+  await Promise.all(tarefas);
 
   return (
     <>
@@ -63,7 +57,7 @@ export default async function DashboardLayout({
       <DashboardShell
         name={profile?.name || user.email || "Você"}
         email={profile?.email || user.email || ""}
-        subscribed={temAcessoLiberado(profile?.role, !!activeSub)}
+        subscribed={temAcessoLiberado(profile?.role, !!activeSub || assinaturaLiberadaAgora)}
         casaNome={settings?.casa_nome || null}
         casaLink={settings?.casa_link || null}
       >

@@ -51,6 +51,10 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    router.prefetch("/dashboard");
+  }, [router]);
+
+  useEffect(() => {
     if (searchParams.get("desativado") === "1") {
       setError("Sua conta foi desativada. Fale com o suporte se acha que isso é um engano.");
     }
@@ -87,8 +91,8 @@ function LoginForm() {
       }
     }
 
-    setLoading(false);
-    router.push("/dashboard");
+    // Mantém o botão em "carregando" até a página trocar.
+    router.replace("/dashboard");
     router.refresh();
   }
 
