@@ -682,7 +682,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* TICKER */}
+      {/* TICKER — só com resultados reais; sem histórico, não mostra jogos de exemplo */}
+      {pub && pub.ultimos.length >= 4 && (
       <div className="relative border-y border-white/[0.06] bg-white/[0.015] overflow-hidden py-4 [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
         <div className="marquee-track flex w-max gap-10">
           {pub && pub.ultimos.length >= 4
@@ -713,6 +714,7 @@ export default function LandingPage() {
               )}
         </div>
       </div>
+      )}
 
       {/* COMPARAÇÃO */}
       <section id="comparacao" className="relative px-5 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
